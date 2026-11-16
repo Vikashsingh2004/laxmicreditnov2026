@@ -346,6 +346,42 @@ const matchCategory = (cat1, cat2) => {
         }
 
         const btLoans = calculatorInput.loansForBT || [];
+
+        // Internal / Same-Bank Balance Transfer Gate
+        const isSameBankBT = btLoans.some(loan => {
+          const l = String(loan.lender || loan.bank || '').toLowerCase().trim();
+          if (!l || l === 'other') return false;
+          if (id === 'hdfc' || name.toLowerCase().includes('hdfc')) return l.includes('hdfc');
+          if (id === 'icici' || name.toLowerCase().includes('icici')) return l.includes('icici');
+          if (id === 'axis-bank' || name === 'Axis Bank') return l === 'axis bank' || (l.includes('axis') && !l.includes('finance'));
+          if (id === 'axis' || name.toLowerCase().includes('axis finance')) return l.includes('axis finance');
+          if (id === 'kotak' || name.toLowerCase().includes('kotak')) return l.includes('kotak');
+          if (id === 'indusind' || name.toLowerCase().includes('indusind')) return l.includes('indusind');
+          if (id === 'idfc' || name.toLowerCase().includes('idfc')) return l.includes('idfc');
+          if (id === 'bandhan' || name.toLowerCase().includes('bandhan')) return l.includes('bandhan');
+          if (id === 'chola' || name.toLowerCase().includes('chola')) return l.includes('chola');
+          if (id === 'tata' || name.toLowerCase().includes('tata')) return l.includes('tata');
+          if (id === 'poonawala' || name.toLowerCase().includes('poonawala')) return l.includes('poonawala');
+          if (id === 'piramal' || name.toLowerCase().includes('piramal')) return l.includes('piramal');
+          if (id === 'lnt' || name.toLowerCase().includes('l&t') || name.toLowerCase().includes('lnt')) return l.includes('l&t') || l.includes('lnt');
+          if (id === 'smfg' || name.toLowerCase().includes('smfg')) return l.includes('smfg');
+          if (id === 'incred' || name.toLowerCase().includes('incred')) return l.includes('incred');
+          if (id === 'au-bank' || id === 'au' || name.toLowerCase().includes('au')) return l.includes('au');
+          if (id === 'abfl' || name.toLowerCase().includes('aditya birla') || name.toLowerCase().includes('abfl')) return l.includes('aditya birla') || l.includes('abfl');
+          return name.toLowerCase().includes(l) || l.includes(name.toLowerCase());
+        });
+
+        if (isSameBankBT) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Same bank Balance Transfer is Not Allowed (cannot balance transfer an existing ${name} loan/card to ${name}).`,
+            category: 'REJECTED'
+          };
+        }
+
         const ccBtLoans = btLoans.filter(l => {
           const t = String(l.type || l.loanType || '').toLowerCase();
           return t.includes('card') || t.includes('cc');

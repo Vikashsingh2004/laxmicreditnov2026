@@ -120,12 +120,36 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
       ? (metadata.salaryMode === 'bank' ? 'Bank Credit' : metadata.salaryMode.toUpperCase()) 
       : 'Bank Credit';
 
-    // Existing Obligations
+    // Existing Obligations & Liabilities
     const existingLoansList = Array.isArray(metadata?.existingLoans) ? metadata.existingLoans : [];
-    const totalExistingEMI = existingLoansList.reduce((sum, loan) => sum + (parseFloat(loan.emi) || 0), 0);
-    const existingLoansText = totalExistingEMI > 0 
-      ? `₹${totalExistingEMI.toLocaleString('en-IN')}/mo (${existingLoansList.length} Active Loans)`
+    const existingCardsList = Array.isArray(metadata?.creditCards) ? metadata.creditCards : [];
+    
+    const loansEmiTotal = existingLoansList.reduce((sum, loan) => {
+      const emiVal = parseFloat(loan.monthlyEMI) || parseFloat(loan.emi) || 0;
+      return sum + emiVal;
+    }, 0);
+    
+    const cardsObligationTotal = existingCardsList.reduce((sum, card) => {
+      const used = parseFloat(card.creditLimitUsed || card.outstandingAmount || 0);
+      return sum + (used * 0.05);
+    }, 0);
+
+    const totalObligation = loansEmiTotal > 0 
+      ? (loansEmiTotal + cardsObligationTotal)
+      : (parseFloat(metadata?.existingEMI) || 0);
+
+    const activeCount = existingLoansList.length + existingCardsList.length;
+    const existingLoansText = totalObligation > 0 
+      ? `₹${Math.round(totalObligation).toLocaleString('en-IN')}/mo (${activeCount > 0 ? activeCount : 1} Active Obligation${activeCount > 1 ? 's' : ''})`
       : 'Zero Active Loans (Nil EMI)';
+
+    // Balance Transfer Mode Indicator
+    const isReportBT = Boolean(
+      metadata?.isBTMode || 
+      metadata?.wantsBT || 
+      (Array.isArray(metadata?.loansForBT) && metadata.loansForBT.length > 0) ||
+      results?.some(b => b.isBTMode || (b.totalDebtCleared && b.totalDebtCleared > 0))
+    );
 
     // CIBIL Profile Info
     const isCibilMinus1 = metadata?.creditScore === -1 || metadata?.creditScore === '-1' || metadata?.cibilScore === -1 || metadata?.cibilScore === '-1' || metadata?.isNewToCredit;
@@ -144,6 +168,32 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
     const rowsHtml = sortedEligibleBanks.map((b, idx) => {
       const bankRoi = b.interestRate ?? b.roi ?? 10.5;
       const bankTenure = b.loanTenure ?? b.tenure ?? 5;
+      if (isReportBT) {
+        return `
+        <tr style="background: ${b === bestOffer ? '#FFF7ED' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')}; border-bottom: 1px solid #E2E8F0;">
+          <td style="padding: 6px 10px; font-weight: 700; color: rgb(66, 66, 66); font-size: 11.5px;">
+            ${b.bankName} ${b === bestOffer ? '<span style="color: #F58220; font-size: 10px; margin-left: 4px; font-weight: 800;">★ Top Pick</span>' : ''}
+          </td>
+          <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #1E40AF; font-size: 12px;">
+            ${formatInr(b.loanAmount)}
+          </td>
+          <td style="padding: 6px 10px; text-align: right; font-weight: 700; color: #DC2626; font-size: 11.5px;">
+            -₹${Number(b.totalDebtCleared || b.btTotalOutstanding || 0).toLocaleString('en-IN')}
+          </td>
+          <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #16A34A; font-size: 12px;">
+            +₹${Number(b.freshAmountDisbursed || 0).toLocaleString('en-IN')}
+          </td>
+          <td style="padding: 6px 10px; text-align: center; font-weight: 600; color: rgb(66, 66, 66); font-size: 11.5px;">
+            ${bankRoi}%
+          </td>
+          <td style="padding: 6px 10px; text-align: center;">
+            <span style="background: #ECFDF5; color: #15803D; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; border: 1px solid #A7F3D0;">
+              Consolidated
+            </span>
+          </td>
+        </tr>
+      `;
+      }
       return `
         <tr style="background: ${b === bestOffer ? '#FFF7ED' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')}; border-bottom: 1px solid #E2E8F0;">
           <td style="padding: 6px 10px; font-weight: 700; color: rgb(66, 66, 66); font-size: 11.5px;">
@@ -199,10 +249,10 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
             <!-- Title -->
             <div style="text-align: center; margin-bottom: 14px;">
               <h1 style="font-size: 22px; font-weight: 800; color: rgb(66, 66, 66); margin: 0 0 3px 0;">
-                Personal Loan <span style="color: #F58220;">Eligibility Summary</span>
+                ${isReportBT ? 'Personal Loan <span style="color: #F58220;">Balance Transfer & Consolidation</span>' : 'Personal Loan <span style="color: #F58220;">Eligibility Summary</span>'}
               </h1>
               <p style="font-size: 12.5px; color: #64748b; margin: 0;">
-                Verified institutional evaluation across ${results.length} leading partner banking institutions
+                ${isReportBT ? `Verified institutional balance transfer & debt consolidation evaluation across ${results.length} leading partner institutions` : `Verified institutional evaluation across ${results.length} leading partner banking institutions`}
               </p>
             </div>
 
@@ -264,10 +314,20 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
 
             <!-- Comparison Table on Page 1 -->
             <div style="font-size: 14px; font-weight: 800; color: rgb(66, 66, 66); margin: 12px 0 8px 0;">
-              Pre-Approved <span style="color: #F58220;">Bank Offers Comparison</span>
+              ${isReportBT ? 'Consolidated <span style="color: #F58220;">Balance Transfer Offers Comparison</span>' : 'Pre-Approved <span style="color: #F58220;">Bank Offers Comparison</span>'}
             </div>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
               <thead>
+                ${isReportBT ? `
+                <tr style="background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #F58220 100%); color: #ffffff;">
+                  <th style="padding: 7px 10px; text-align: left; font-size: 10.5px; font-weight: 700; border-radius: 4px 0 0 0;">Lending Institution</th>
+                  <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Total Sanction</th>
+                  <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Debt Cleared</th>
+                  <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Net Disbursed</th>
+                  <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700;">ROI</th>
+                  <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700; border-radius: 0 4px 0 0;">Status</th>
+                </tr>
+                ` : `
                 <tr style="background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #F58220 100%); color: #ffffff;">
                   <th style="padding: 7px 10px; text-align: left; font-size: 10.5px; font-weight: 700; border-radius: 4px 0 0 0;">Lending Institution</th>
                   <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Loan Sanction</th>
@@ -276,11 +336,20 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                   <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700;">Tenure</th>
                   <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700; border-radius: 0 4px 0 0;">Status</th>
                 </tr>
+                `}
               </thead>
               <tbody>
                 ${rowsHtml}
               </tbody>
             </table>
+
+            ${rejectedBanks.length > 0 ? `
+              <div style="margin-top: 10px; padding: 8px 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; font-size: 9.5px; color: #991B1B; line-height: 1.4;">
+                <strong>✕ Not Allowed / Excluded (${rejectedBanks.length} Lenders):</strong>
+                ${rejectedBanks.slice(0, 5).map(b => `<span style="font-weight: 600;">${b.bankName}</span> (${b.reason || 'Criteria mismatch'})`).join(' • ')}
+                ${rejectedBanks.length > 5 ? ` and ${rejectedBanks.length - 5} more.` : ''}
+              </div>
+            ` : ''}
           </div>
 
           <!-- Page 1 Footer -->
@@ -317,29 +386,29 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
             <table style="width: 100%; border-collapse: separate; border-spacing: 8px; margin-bottom: 18px; margin-left: -8px; margin-right: -8px;">
               <tr>
                 <td style="width: 25%; background: #FFF4EC; border: 1.5px solid #F58220; border-radius: 10px; padding: 12px; text-align: center;">
-                  <div style="font-size: 10px; font-weight: 700; color: #F58220; text-transform: uppercase;">Highest Sanction</div>
-                  <div style="font-size: 22px; font-weight: 800; color: #F58220; margin: 3px 0 1px;">
+                  <div style="font-size: 10px; font-weight: 700; color: #F58220; text-transform: uppercase;">${isReportBT ? 'Total Sanction' : 'Highest Sanction'}</div>
+                  <div style="font-size: 20px; font-weight: 800; color: #F58220; margin: 3px 0 1px;">
                     ${bestOffer ? formatLakhs(bestOffer.loanAmount) : 'N/A'}
                   </div>
                   <div style="font-size: 10px; color: #9a3412; font-weight: 600;">${bestOffer?.bankName || 'Top Offer'}</div>
                 </td>
                 <td style="width: 25%; background: #EEF3FA; border: 1.5px solid #BFDBFE; border-radius: 10px; padding: 12px; text-align: center;">
-                  <div style="font-size: 10px; font-weight: 700; color: #1E40AF; text-transform: uppercase;">Optimal Monthly EMI</div>
-                  <div style="font-size: 22px; font-weight: 800; color: #1E40AF; margin: 3px 0 1px;">
-                    ${bestOffer ? formatInr(bestOffer.monthlyEMI) : 'N/A'}
+                  <div style="font-size: 10px; font-weight: 700; color: #1E40AF; text-transform: uppercase;">${isReportBT ? 'Net Disbursed' : 'Optimal Monthly EMI'}</div>
+                  <div style="font-size: 20px; font-weight: 800; color: #16A34A; margin: 3px 0 1px;">
+                    ${isReportBT ? (bestOffer ? formatInr(bestOffer.freshAmountDisbursed) : 'N/A') : (bestOffer ? formatInr(bestOffer.monthlyEMI) : 'N/A')}
                   </div>
-                  <div style="font-size: 10px; color: #1E40AF; font-weight: 600;">Per Month</div>
+                  <div style="font-size: 10px; color: #16A34A; font-weight: 600;">${isReportBT ? 'Fresh In-Hand' : 'Per Month'}</div>
                 </td>
                 <td style="width: 25%; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px; text-align: center;">
-                  <div style="font-size: 10px; font-weight: 700; color: rgb(66, 66, 66); text-transform: uppercase;">Interest Rate</div>
-                  <div style="font-size: 22px; font-weight: 800; color: rgb(66, 66, 66); margin: 3px 0 1px;">
-                    ${bestRoi}%
+                  <div style="font-size: 10px; font-weight: 700; color: rgb(66, 66, 66); text-transform: uppercase;">${isReportBT ? 'Debt Cleared' : 'Interest Rate'}</div>
+                  <div style="font-size: 20px; font-weight: 800; color: ${isReportBT ? '#DC2626' : 'rgb(66, 66, 66)'}; margin: 3px 0 1px;">
+                    ${isReportBT ? (bestOffer ? formatInr(bestOffer.totalDebtCleared || bestOffer.btTotalOutstanding) : 'N/A') : `${bestRoi}%`}
                   </div>
-                  <div style="font-size: 10px; color: #64748b; font-weight: 600;">p.a. onwards</div>
+                  <div style="font-size: 10px; color: #64748b; font-weight: 600;">${isReportBT ? 'Liabilities Cleared' : 'p.a. onwards'}</div>
                 </td>
                 <td style="width: 25%; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px; text-align: center;">
                   <div style="font-size: 10px; font-weight: 700; color: #15803D; text-transform: uppercase;">Approval Success</div>
-                  <div style="font-size: 22px; font-weight: 800; color: #15803D; margin: 3px 0 1px;">
+                  <div style="font-size: 20px; font-weight: 800; color: #15803D; margin: 3px 0 1px;">
                     ${approvalRate}%
                   </div>
                   <div style="font-size: 10px; color: #15803D; font-weight: 600;">${stats.eligibleCount} of ${stats.totalBanks} Approved</div>
@@ -353,33 +422,33 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #FED7AA; padding-bottom: 8px; margin-bottom: 14px;">
                   <div>
                     <span style="background: #F58220; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 12px; letter-spacing: 0.5px; margin-right: 8px;">
-                      ⭐ TOP RECOMMENDED OFFER
+                      ⭐ TOP RECOMMENDED ${isReportBT ? 'CONSOLIDATION' : 'OFFER'}
                     </span>
                     <span style="font-size: 19px; font-weight: 800; color: rgb(66, 66, 66);">
                       ${bestOffer.bankName}
                     </span>
                   </div>
                   <span style="background: #EEF3FA; color: #1E40AF; font-size: 11px; font-weight: 750; padding: 3px 10px; border-radius: 12px;">
-                    Pre-Approved
+                    ${isReportBT ? 'Consolidated Pre-Approved' : 'Pre-Approved'}
                   </span>
                 </div>
                 <table style="width: 100%; border: none;">
                   <tr>
                     <td style="width: 25%;">
-                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Sanctioned Limit</div>
-                      <div style="font-size: 22px; font-weight: 800; color: #F58220; margin-top: 2px;">${formatLakhs(bestOffer.loanAmount)}</div>
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">${isReportBT ? 'Total Sanction' : 'Sanctioned Limit'}</div>
+                      <div style="font-size: 20px; font-weight: 800; color: #F58220; margin-top: 2px;">${formatLakhs(bestOffer.loanAmount)}</div>
                     </td>
                     <td style="width: 25%;">
-                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Monthly EMI</div>
-                      <div style="font-size: 22px; font-weight: 800; color: #1E40AF; margin-top: 2px;">${formatInr(bestOffer.monthlyEMI)}</div>
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">${isReportBT ? 'Net Disbursed' : 'Monthly EMI'}</div>
+                      <div style="font-size: 20px; font-weight: 800; color: #16A34A; margin-top: 2px;">${isReportBT ? formatInr(bestOffer.freshAmountDisbursed) : formatInr(bestOffer.monthlyEMI)}</div>
                     </td>
                     <td style="width: 25%;">
-                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Interest Rate (ROI)</div>
-                      <div style="font-size: 22px; font-weight: 800; color: rgb(66, 66, 66); margin-top: 2px;">${bestRoi}%</div>
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">${isReportBT ? 'Debt Cleared' : 'Interest Rate (ROI)'}</div>
+                      <div style="font-size: 20px; font-weight: 800; color: ${isReportBT ? '#DC2626' : 'rgb(66, 66, 66)'}; margin-top: 2px;">${isReportBT ? formatInr(bestOffer.totalDebtCleared || bestOffer.btTotalOutstanding) : `${bestRoi}%`}</div>
                     </td>
                     <td style="width: 25%;">
-                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Tenure</div>
-                      <div style="font-size: 22px; font-weight: 800; color: rgb(66, 66, 66); margin-top: 2px;">${bestTenure} Years</div>
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">${isReportBT ? 'New Monthly EMI' : 'Tenure'}</div>
+                      <div style="font-size: 20px; font-weight: 800; color: #1E40AF; margin-top: 2px;">${isReportBT ? `${formatInr(bestOffer.monthlyEMI)}` : `${bestTenure} Years`}</div>
                     </td>
                   </tr>
                 </table>

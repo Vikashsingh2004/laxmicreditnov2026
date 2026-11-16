@@ -203,6 +203,19 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
       return;
     }
 
+    if (name === 'wantsBT') {
+      const allIds = checked ? [
+        ...(formData.hasExistingLoans && Array.isArray(formData.existingLoans) ? formData.existingLoans.map(l => l.id) : []),
+        ...(formData.hasCreditCards && Array.isArray(formData.creditCards) ? formData.creditCards.map(c => c.id) : [])
+      ] : [];
+      setFormData(prev => ({
+        ...prev,
+        wantsBT: checked,
+        selectedLoansForBT: checked ? (prev.selectedLoansForBT.length > 0 ? prev.selectedLoansForBT : allIds) : []
+      }));
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : finalValue

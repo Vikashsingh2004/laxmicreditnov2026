@@ -68,7 +68,14 @@ function CustomerFacingApp() {
       salaryMode: rawFormData?.salaryMode || submissionData?.salaryMode || 'bank',
       hasPpfDeduction: rawFormData?.hasPpfDeduction !== undefined ? rawFormData.hasPpfDeduction : (submissionData?.hasPpfDeduction !== undefined ? submissionData.hasPpfDeduction : true),
       hasPfDeduction: rawFormData?.hasPfDeduction !== undefined ? rawFormData.hasPfDeduction : (submissionData?.hasPfDeduction !== undefined ? submissionData.hasPfDeduction : true),
-      existingLoans: rawFormData?.existingLoans || submissionData?.existingLoans || submissionData?._metadata?.existingLoans || []
+      existingLoans: rawFormData?.existingLoans || submissionData?.existingLoans || submissionData?._metadata?.existingLoans || [],
+      creditCards: rawFormData?.creditCards || submissionData?.creditCards || submissionData?._metadata?.creditCards || [],
+      existingEMI: submissionData?.existingEMI ?? rawFormData?.existingEMI ?? 0,
+      isBTMode: Boolean(submissionData?.wantsBT && ((submissionData?.loansForBT && submissionData.loansForBT.length > 0) || (submissionData?.existingLoans && submissionData.existingLoans.length > 0))),
+      wantsBT: Boolean(submissionData?.wantsBT),
+      loansForBT: (submissionData?.loansForBT && submissionData.loansForBT.length > 0) 
+        ? submissionData.loansForBT 
+        : (submissionData?.wantsBT && submissionData?.existingLoans ? submissionData.existingLoans : [])
     };
 
     setSavedFormData(combinedData);
@@ -94,18 +101,29 @@ function CustomerFacingApp() {
 
       let calculationResults;
 
-      const hasLoansForBT = submissionData.wantsBT && submissionData.loansForBT && submissionData.loansForBT.length > 0;
-      const creditCardsInBT = hasLoansForBT ? submissionData.loansForBT.filter(loan => loan.type === 'Credit Card') : [];
-      const personalLoansInBT = hasLoansForBT ? submissionData.loansForBT.filter(loan => loan.type !== 'Credit Card') : [];
+      const hasLoansForBT = Boolean(
+        submissionData.wantsBT && (
+          (submissionData.loansForBT && submissionData.loansForBT.length > 0) ||
+          (submissionData.existingLoans && submissionData.existingLoans.length > 0) ||
+          (submissionData.creditCards && submissionData.creditCards.length > 0)
+        )
+      );
 
-      if (hasLoansForBT) {
+      const effectiveBtLoans = (submissionData.loansForBT && submissionData.loansForBT.length > 0)
+        ? submissionData.loansForBT
+        : [
+            ...(submissionData.existingLoans || []).map(l => ({ ...l, type: l.loanType === 'hl' ? 'Home Loan' : 'Personal Loan' })),
+            ...(submissionData.creditCards || []).map(c => ({ ...c, type: 'Credit Card', outstandingAmount: parseFloat(c.creditLimitUsed || 0) }))
+          ];
+
+      if (hasLoansForBT && effectiveBtLoans.length > 0) {
         console.log('🔄 BT MODE DETECTED!');
         const fullBtSubmission = {
           ...submissionData,
           isBTMode: true,
           wantsBT: true,
-          loansForBT: submissionData.loansForBT,
-          selectedLoansForBT: submissionData.loansForBT
+          loansForBT: effectiveBtLoans,
+          selectedLoansForBT: effectiveBtLoans
         };
         calculationResults = await calculateLoanEligibility(fullBtSubmission);
       } else {
