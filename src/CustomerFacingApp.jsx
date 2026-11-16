@@ -137,7 +137,16 @@ function CustomerFacingApp() {
         calculationResults = await calculateTopUpEligibility(submissionData);
       } else if (currentMode === 'od') {
         console.log('⚡ OVERDRAFT (OD) LIMIT CALCULATION (5 PARTNER BANKS ONLY)');
-        calculationResults = await calculateODLimitEligibility(submissionData);
+        const odBtSubmission = (hasLoansForBT && effectiveBtLoans.length > 0)
+          ? {
+              ...submissionData,
+              isBTMode: true,
+              wantsBT: true,
+              loansForBT: effectiveBtLoans,
+              selectedLoansForBT: effectiveBtLoans
+            }
+          : submissionData;
+        calculationResults = await calculateODLimitEligibility(odBtSubmission);
       } else if (currentMode === 'pl' && hasLoansForBT && effectiveBtLoans.length > 0) {
         console.log('🔄 BT MODE DETECTED!');
         const fullBtSubmission = {

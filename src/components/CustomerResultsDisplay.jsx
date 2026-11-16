@@ -58,6 +58,14 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
 
   const isTopUpMode = Boolean(metadata?.productMode === 'topup' || results?.some(r => r.isTopUp));
   const isODMode = Boolean(metadata?.productMode === 'od' || results?.some(r => r.isOD));
+  const isODBT = Boolean(
+    isODMode && (
+      metadata?.wantsBT || 
+      metadata?.isBTMode || 
+      (Array.isArray(metadata?.loansForBT) && metadata.loansForBT.length > 0) ||
+      results?.some(r => r.isODBT)
+    )
+  );
 
   // Sort eligible banks
   const sortedEligibleBanks = [...eligibleBanks].sort((a, b) => {
@@ -224,6 +232,36 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
       `;
       }
 
+      if (isODMode && isODBT) {
+        return `
+        <tr style="background: ${b === bestOffer ? '#ECFDF5' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')}; border-bottom: 1px solid #E2E8F0;">
+          <td style="padding: 6px 10px; font-weight: 700; color: rgb(66, 66, 66); font-size: 11.5px;">
+            ${b.bankName} ${b === bestOffer ? '<span style="color: #059669; font-size: 10px; margin-left: 4px; font-weight: 800;">★ Best OD Takeover</span>' : ''}
+          </td>
+          <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #059669; font-size: 12px;">
+            ${formatLakhs(b.totalSanctionedLimit || b.odLimit)}
+          </td>
+          <td style="padding: 6px 10px; text-align: right; font-weight: 700; color: #DC2626; font-size: 11.5px;">
+            -₹${Number(b.debtClearedPOS || b.utilizedODLimit || 0).toLocaleString('en-IN')}
+          </td>
+          <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #0284C7; font-size: 12px;">
+            ${formatLakhs(b.availableODLimit)}
+          </td>
+          <td style="padding: 6px 10px; text-align: right; font-weight: 750; color: #0D9488; font-size: 11.5px;">
+            ₹${Number(b.monthlyInterestOnUsed || 0).toLocaleString('en-IN')}/mo
+          </td>
+          <td style="padding: 6px 10px; text-align: center; font-weight: 600; color: rgb(66, 66, 66); font-size: 11.5px;">
+            ${bankRoi}%
+          </td>
+          <td style="padding: 6px 10px; text-align: center;">
+            <span style="background: #ECFDF5; color: #059669; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; border: 1px solid #6EE7B7;">
+              OD Takeover
+            </span>
+          </td>
+        </tr>
+      `;
+      }
+
       if (isODMode) {
         return `
         <tr style="background: ${b === bestOffer ? '#ECFDF5' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')}; border-bottom: 1px solid #E2E8F0;">
@@ -334,20 +372,24 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
               <h1 style="font-size: 22px; font-weight: 800; color: rgb(66, 66, 66); margin: 0 0 3px 0;">
                 ${isTopUpMode 
                   ? 'Existing Loan <span style="color: #0284C7;">Top-Up Sanction Report</span>' 
-                  : isODMode 
-                    ? 'Pre-Approved <span style="color: #059669;">Overdraft (OD) Facility Assessment</span>' 
-                    : isReportBT 
-                      ? 'Personal Loan <span style="color: #F58220;">Balance Transfer & Consolidation</span>' 
-                      : 'Personal Loan <span style="color: #F58220;">Eligibility Summary</span>'}
+                  : (isODMode && isODBT)
+                    ? 'Overdraft (OD) <span style="color: #059669;">Balance Transfer & Takeover Assessment</span>'
+                    : isODMode 
+                      ? 'Pre-Approved <span style="color: #059669;">Overdraft (OD) Facility Assessment</span>' 
+                      : isReportBT 
+                        ? 'Personal Loan <span style="color: #F58220;">Balance Transfer & Consolidation</span>' 
+                        : 'Personal Loan <span style="color: #F58220;">Eligibility Summary</span>'}
               </h1>
               <p style="font-size: 12.5px; color: #64748b; margin: 0;">
                 ${isTopUpMode 
                   ? `Verified institutional top-up disbursal evaluation across ${results.length} active running loan(s)` 
-                  : isODMode 
-                    ? `Verified institutional overdraft limits across 5 leading partner institutions` 
-                    : isReportBT 
-                      ? `Verified institutional balance transfer & debt consolidation evaluation across ${results.length} leading partner institutions` 
-                      : `Verified institutional evaluation across ${results.length} leading partner banking institutions`}
+                  : (isODMode && isODBT)
+                    ? `Verified institutional overdraft loan takeover and debt clearance across 5 leading partner institutions`
+                    : isODMode 
+                      ? `Verified institutional overdraft limits across 5 leading partner institutions` 
+                      : isReportBT 
+                        ? `Verified institutional balance transfer & debt consolidation evaluation across ${results.length} leading partner institutions` 
+                        : `Verified institutional evaluation across ${results.length} leading partner banking institutions`}
               </p>
             </div>
 
@@ -411,11 +453,13 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
             <div style="font-size: 14px; font-weight: 800; color: rgb(66, 66, 66); margin: 12px 0 8px 0;">
               ${isTopUpMode 
                 ? 'Existing Loan <span style="color: #0284C7;">Top-Up Assessment (Total Capacity minus Running Loan)</span>' 
-                : isODMode 
-                  ? 'Institutional <span style="color: #059669;">Overdraft (OD) Limits (5 Partners)</span>' 
-                  : isReportBT 
-                    ? 'Consolidated <span style="color: #F58220;">Balance Transfer Offers Comparison</span>' 
-                    : 'Pre-Approved <span style="color: #F58220;">Bank Offers Comparison</span>'}
+                : (isODMode && isODBT)
+                  ? 'Institutional <span style="color: #059669;">Overdraft Balance Transfer (OD Takeover & Remaining Limit)</span>'
+                  : isODMode 
+                    ? 'Institutional <span style="color: #059669;">Overdraft (OD) Limits (5 Partners)</span>' 
+                    : isReportBT 
+                      ? 'Consolidated <span style="color: #F58220;">Balance Transfer Offers Comparison</span>' 
+                      : 'Pre-Approved <span style="color: #F58220;">Bank Offers Comparison</span>'}
             </div>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
               <thead>
@@ -426,6 +470,16 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                   <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Running Loan (L)</th>
                   <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Net Top-Up Cash</th>
                   <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700;">ROI</th>
+                  <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700; border-radius: 0 4px 0 0;">Status</th>
+                </tr>
+                ` : (isODMode && isODBT) ? `
+                <tr style="background: linear-gradient(135deg, #059669 0%, #0D9488 100%); color: #ffffff;">
+                  <th style="padding: 7px 10px; text-align: left; font-size: 10.5px; font-weight: 700; border-radius: 4px 0 0 0;">Lending Institution</th>
+                  <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Total OD Limit</th>
+                  <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Debt Cleared (POS)</th>
+                  <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Available Limit</th>
+                  <th style="padding: 7px 10px; text-align: right; font-size: 10.5px; font-weight: 700;">Used Limit Interest</th>
+                  <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700;">OD ROI</th>
                   <th style="padding: 7px 10px; text-align: center; font-size: 10.5px; font-weight: 700; border-radius: 0 4px 0 0;">Status</th>
                 </tr>
                 ` : isODMode ? `
@@ -532,6 +586,39 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                     ${bestOffer ? formatInr(bestOffer.monthlyEMI) : 'N/A'}
                   </div>
                   <div style="font-size: 10px; color: #1E40AF; font-weight: 600;">@ ${bestOffer?.interestRate || 10.75}% p.a.</div>
+                </td>
+              </tr>
+            </table>
+            ` : (isODMode && isODBT) ? `
+            <table style="width: 100%; border-collapse: separate; border-spacing: 8px; margin-bottom: 18px; margin-left: -8px; margin-right: -8px;">
+              <tr>
+                <td style="width: 25%; background: #ECFDF5; border: 1.5px solid #059669; border-radius: 10px; padding: 12px; text-align: center;">
+                  <div style="font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase;">Total Sanctioned Limit</div>
+                  <div style="font-size: 20px; font-weight: 800; color: #059669; margin: 3px 0 1px;">
+                    ${bestOffer ? formatLakhs(bestOffer.totalSanctionedLimit || bestOffer.odLimit) : 'N/A'}
+                  </div>
+                  <div style="font-size: 10px; color: #047857; font-weight: 600;">${bestOffer?.bankName || 'Top OD Partner'}</div>
+                </td>
+                <td style="width: 25%; background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 10px; padding: 12px; text-align: center;">
+                  <div style="font-size: 10px; font-weight: 700; color: #DC2626; text-transform: uppercase;">Debt Cleared (POS)</div>
+                  <div style="font-size: 20px; font-weight: 800; color: #DC2626; margin: 3px 0 1px;">
+                    ${bestOffer ? `- ${formatInr(bestOffer.debtClearedPOS || bestOffer.utilizedODLimit || 0)}` : 'N/A'}
+                  </div>
+                  <div style="font-size: 10px; color: #991B1B; font-weight: 600;">Old Loan Cleared</div>
+                </td>
+                <td style="width: 25%; background: #F0F9FF; border: 1.5px solid #BAE6FD; border-radius: 10px; padding: 12px; text-align: center;">
+                  <div style="font-size: 10px; font-weight: 700; color: #0284C7; text-transform: uppercase;">Available Free Limit</div>
+                  <div style="font-size: 20px; font-weight: 800; color: #0284C7; margin: 3px 0 1px;">
+                    ${bestOffer ? formatLakhs(bestOffer.availableODLimit) : 'N/A'}
+                  </div>
+                  <div style="font-size: 10px; color: #0369A1; font-weight: 600;">24x7 Ready Credit Line</div>
+                </td>
+                <td style="width: 25%; background: #ECFDF5; border: 1.5px solid #A7F3D0; border-radius: 10px; padding: 12px; text-align: center;">
+                  <div style="font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase;">Used Limit Interest</div>
+                  <div style="font-size: 18px; font-weight: 800; color: #059669; margin: 4px 0 2px;">
+                    ${bestOffer ? `₹${Number(bestOffer.monthlyInterestOnUsed || 0).toLocaleString('en-IN')}/mo` : 'N/A'}
+                  </div>
+                  <div style="font-size: 10px; color: #047857; font-weight: 600;">~₹${Number(bestOffer?.dailyInterestOnUsed || 0).toLocaleString('en-IN')}/day (${bestOffer?.interestRate || 10.75}%)</div>
                 </td>
               </tr>
             </table>
@@ -674,6 +761,42 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                   </tr>
                 </table>
               </div>
+              ` : (isODMode && isODBT) ? `
+              <div style="background: #ECFDF5; border: 2px solid #059669; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #A7F3D0; padding-bottom: 8px; margin-bottom: 14px;">
+                  <div>
+                    <span style="background: #059669; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 12px; letter-spacing: 0.5px; margin-right: 8px;">
+                      ⭐ TOP RECOMMENDED OD BALANCE TRANSFER (TAKEOVER)
+                    </span>
+                    <span style="font-size: 19px; font-weight: 800; color: rgb(66, 66, 66);">
+                      ${bestOffer.bankName}
+                    </span>
+                  </div>
+                  <span style="background: #D1FAE5; color: #047857; font-size: 11px; font-weight: 750; padding: 3px 10px; border-radius: 12px;">
+                    OD Takeover Approved
+                  </span>
+                </div>
+                <table style="width: 100%; border: none;">
+                  <tr>
+                    <td style="width: 25%;">
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Total OD Limit</div>
+                      <div style="font-size: 20px; font-weight: 800; color: #059669; margin-top: 2px;">${formatLakhs(bestOffer.totalSanctionedLimit || bestOffer.odLimit)}</div>
+                    </td>
+                    <td style="width: 25%;">
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Debt Cleared (POS)</div>
+                      <div style="font-size: 20px; font-weight: 800; color: #DC2626; margin-top: 2px;">-${formatInr(bestOffer.debtClearedPOS || bestOffer.utilizedODLimit || 0)}</div>
+                    </td>
+                    <td style="width: 25%;">
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Available Free Limit</div>
+                      <div style="font-size: 20px; font-weight: 800; color: #0284C7; margin-top: 2px;">${formatLakhs(bestOffer.availableODLimit)}</div>
+                    </td>
+                    <td style="width: 25%;">
+                      <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600;">Used Limit Interest</div>
+                      <div style="font-size: 18px; font-weight: 800; color: #059669; margin-top: 3px;">₹${Number(bestOffer.monthlyInterestOnUsed || 0).toLocaleString('en-IN')}/mo</div>
+                    </td>
+                  </tr>
+                </table>
+              </div>
               ` : isODMode ? `
               <div style="background: #ECFDF5; border: 2px solid #059669; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #A7F3D0; padding-bottom: 8px; margin-bottom: 14px;">
@@ -790,46 +913,54 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
               <div style="font-size: 11px; font-weight: 800; color: #1E40AF; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
                 ${isTopUpMode 
                   ? '⚡ 3 Simple Steps to Avail Your Top-Up Disbursal' 
-                  : isODMode 
-                    ? '⚡ 3 Simple Steps to Activate Your Overdraft Credit Line' 
-                    : '⚡ 3 Simple Steps to Claim Your Loan Sanction'}
+                  : (isODMode && isODBT)
+                    ? '⚡ 3 Simple Steps to Complete Your OD Takeover'
+                    : isODMode 
+                      ? '⚡ 3 Simple Steps to Activate Your Overdraft Credit Line' 
+                      : '⚡ 3 Simple Steps to Claim Your Loan Sanction'}
               </div>
               <table style="width: 100%; border: none; font-size: 11px;">
                 <tr>
                   <td style="width: 33%; vertical-align: top; padding-right: 10px;">
                     <strong style="color: ${isTopUpMode ? '#0284C7' : (isODMode ? '#059669' : '#F58220')};">
-                      ${isTopUpMode ? '1. Verify Active Loan' : (isODMode ? '1. Connect Salary Bank' : '1. Select Preferred Bank')}
+                      ${isTopUpMode ? '1. Verify Active Loan' : ((isODMode && isODBT) ? '1. Direct Debt Foreclosure' : (isODMode ? '1. Connect Salary Bank' : '1. Select Preferred Bank'))}
                     </strong>
                     <div style="color: #64748b; margin-top: 2px; line-height: 1.4;">
                       ${isTopUpMode 
                         ? 'Top-up is processed directly on your current active loan account without new sanction charges.' 
-                        : isODMode 
-                          ? 'Link your bank account to set up your pre-approved institutional credit line.' 
-                          : 'Choose the offer best matching your required amount or lowest monthly EMI.'}
+                        : (isODMode && isODBT)
+                          ? 'The OD lender issues foreclosure payout to close your old running loans and eliminate their high EMI.'
+                          : isODMode 
+                            ? 'Link your bank account to set up your pre-approved institutional credit line.' 
+                            : 'Choose the offer best matching your required amount or lowest monthly EMI.'}
                     </div>
                   </td>
                   <td style="width: 33%; vertical-align: top; padding-right: 10px;">
                     <strong style="color: #1E40AF;">
-                      ${isTopUpMode ? '2. Digital Top-Up Approval' : (isODMode ? '2. Draw Anytime 24x7' : '2. Digital Verification')}
+                      ${isTopUpMode ? '2. Digital Top-Up Approval' : ((isODMode && isODBT) ? '2. POS Deducted from OD' : (isODMode ? '2. Draw Anytime 24x7' : '2. Digital Verification'))}
                     </strong>
                     <div style="color: #64748b; margin-top: 2px; line-height: 1.4;">
                       ${isTopUpMode 
                         ? 'Fast-track 100% paperless review based on your existing flawless repayment history.' 
-                        : isODMode 
-                          ? 'Withdraw any amount at any time directly via net banking or UPI. Zero fixed EMI.' 
-                          : 'Fast-track 100% paperless KYC and salary account verification.'}
+                        : (isODMode && isODBT)
+                          ? 'The exact loan POS is drawn from your limit. The remaining balance remains free for you to withdraw 24x7.'
+                          : isODMode 
+                            ? 'Withdraw any amount at any time directly via net banking or UPI. Zero fixed EMI.' 
+                            : 'Fast-track 100% paperless KYC and salary account verification.'}
                     </div>
                   </td>
                   <td style="width: 33%; vertical-align: top;">
                     <strong style="color: #15803D;">
-                      ${isTopUpMode ? '3. Instant Top-Up Disbursal' : (isODMode ? '3. Pay Interest Only on Usage' : '3. Instant Disbursement')}
+                      ${isTopUpMode ? '3. Instant Top-Up Disbursal' : ((isODMode && isODBT) ? '3. Pay Interest on Used Balance' : (isODMode ? '3. Pay Interest Only on Usage' : '3. Instant Disbursement'))}
                     </strong>
                     <div style="color: #64748b; margin-top: 2px; line-height: 1.4;">
                       ${isTopUpMode 
                         ? 'Net top-up funds credited directly into your salary bank account.' 
-                        : isODMode 
-                          ? 'Interest is charged only on the exact funds utilized. Unused credit limit costs ₹0.' 
-                          : 'Approved loan amount is credited directly into your salary bank account.'}
+                        : (isODMode && isODBT)
+                          ? 'You now pay only interest on the utilized POS balance. Unused credit limit costs ₹0.'
+                          : isODMode 
+                            ? 'Interest is charged only on the exact funds utilized. Unused credit limit costs ₹0.' 
+                            : 'Approved loan amount is credited directly into your salary bank account.'}
                     </div>
                   </td>
                 </tr>
@@ -838,11 +969,13 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
 
             <!-- Advisory -->
             <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 10px 14px; font-size: 10px; color: #92400E; line-height: 1.4;">
-              <strong>Advisory Notice:</strong> ${isODMode 
-                ? 'Overdraft (OD) facility represents a revolving credit line where interest is charged strictly on the utilized balance on a daily basis. No fixed EMI applies unless funds are drawn. Final limit activation is subject to partner bank documentation. Soft inquiry has zero impact on your CIBIL score.' 
-                : isTopUpMode 
-                  ? 'Top-Up loan disbursal represents incremental funding over your running loan balance based on underwriting capacity (Total Capacity minus Running Loan). Final sanction and disbursal remain subject to lender track record verification. Soft inquiry has zero impact on your CIBIL score.' 
-                  : 'The terms and sanction amounts presented herein represent algorithmic pre-approvals based on multi-bank credit policy rules. Final sanction and disbursal remain subject to bank document verification. Soft inquiry has zero impact on your CIBIL score.'}
+              <strong>Advisory Notice:</strong> ${(isODMode && isODBT)
+                ? 'Overdraft (OD) balance transfer utilizes your sanctioned limit to foreclose existing loan liabilities. Monthly interest applies strictly to the utilized balance drawn for debt clearance. The unused limit carries zero charges until drawn. Final limit activation is subject to bank verification. Soft inquiry has zero impact on your CIBIL score.'
+                : isODMode 
+                  ? 'Overdraft (OD) facility represents a revolving credit line where interest is charged strictly on the utilized balance on a daily basis. No fixed EMI applies unless funds are drawn. Final limit activation is subject to partner bank documentation. Soft inquiry has zero impact on your CIBIL score.' 
+                  : isTopUpMode 
+                    ? 'Top-Up loan disbursal represents incremental funding over your running loan balance based on underwriting capacity (Total Capacity minus Running Loan). Final sanction and disbursal remain subject to lender track record verification. Soft inquiry has zero impact on your CIBIL score.' 
+                    : 'The terms and sanction amounts presented herein represent algorithmic pre-approvals based on multi-bank credit policy rules. Final sanction and disbursal remain subject to bank document verification. Soft inquiry has zero impact on your CIBIL score.'}
             </div>
           </div>
 
@@ -1168,6 +1301,26 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
               </div>
             </div>
           </>
+        ) : bestOffer && isODBT ? (
+          <>
+            <div className="stat-card highlight" style={{ background: '#ECFDF5', border: '2px solid #059669', padding: '22px 18px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 6px 20px rgba(5, 150, 105, 0.12)' }}>
+              <div className="stat-value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.85rem', fontWeight: 800, color: '#059669', marginBottom: '8px' }}>
+                {formatCurrency(bestOffer.totalSanctionedLimit || bestOffer.odLimit)}
+              </div>
+              <div className="stat-label" style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 1, display: 'block' }}>
+                Total Sanctioned OD Limit
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', padding: '22px 18px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+              <div className="stat-value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.85rem', fontWeight: 800, color: '#0284C7', marginBottom: '8px' }}>
+                {formatCurrency(bestOffer.availableODLimit)}
+              </div>
+              <div className="stat-label" style={{ fontSize: '0.82rem', color: '#0369A1', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 1, display: 'block' }}>
+                Available Free Limit
+              </div>
+            </div>
+          </>
         ) : bestOffer && isODMode ? (
           <>
             <div className="stat-card highlight" style={{ background: '#ECFDF5', border: '2px solid #059669', padding: '22px 18px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 6px 20px rgba(5, 150, 105, 0.12)' }}>
@@ -1211,13 +1364,15 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
         ) : null}
 
         <div className="stat-card" style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', padding: '22px 18px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-          <div className="stat-value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.85rem', fontWeight: 800, color: isTopUpMode ? '#DC2626' : (isODMode ? '#059669' : '#1E40AF'), marginBottom: '8px' }}>
-            {isTopUpMode 
-              ? (bestOffer?.runningLoanOutstanding ? `- ${formatCurrency(bestOffer.runningLoanOutstanding)}` : '₹0')
-              : (isODMode ? '₹0' : formatCurrency(stats.avgLoanAmount))}
+          <div className="stat-value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.85rem', fontWeight: 800, color: (isTopUpMode || isODBT) ? '#DC2626' : (isODMode ? '#059669' : '#1E40AF'), marginBottom: '8px' }}>
+            {isODBT 
+              ? (bestOffer?.debtClearedPOS ? `- ${formatCurrency(bestOffer.debtClearedPOS)}` : '₹0')
+              : isTopUpMode 
+                ? (bestOffer?.runningLoanOutstanding ? `- ${formatCurrency(bestOffer.runningLoanOutstanding)}` : '₹0')
+                : (isODMode ? '₹0' : formatCurrency(stats.avgLoanAmount))}
           </div>
           <div className="stat-label" style={{ fontSize: '0.82rem', color: 'rgb(66, 66, 66)', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 1, display: 'block' }}>
-            {isTopUpMode ? 'Running Loan Deducted (L)' : (isODMode ? 'Charges on Unused Limit' : 'Mean Approval Value')}
+            {isODBT ? 'Existing Debt Cleared (POS)' : isTopUpMode ? 'Running Loan Deducted (L)' : (isODMode ? 'Charges on Unused Limit' : 'Mean Approval Value')}
           </div>
         </div>
       </div>
@@ -1244,25 +1399,27 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
             display: 'inline-block',
             marginBottom: '16px'
           }}>
-            {isTopUpMode ? '⚡ TOP-UP RECOMMENDED OFFER' : (isODMode ? '💳 TOP OVERDRAFT (OD) LIMIT' : 'OPTIMAL SELECTION')}
+            {isTopUpMode ? '⚡ TOP-UP RECOMMENDED OFFER' : (isODBT ? '💳 OVERDRAFT WITH BALANCE TRANSFER (TAKEOVER)' : (isODMode ? '💳 TOP OVERDRAFT (OD) LIMIT' : 'OPTIMAL SELECTION'))}
           </div>
           <div className="best-offer-content">
             <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.6rem', fontWeight: 750, color: 'rgb(66, 66, 66)', margin: '0 0 24px 0' }}>{bestOffer.bankName}</h3>
             <div className="best-offer-details" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px' }}>
               <div className="detail-item">
                 <span className="label" style={{ fontSize: '0.8rem', color: 'rgb(66, 66, 66)', marginBottom: '4px', fontWeight: 650, textTransform: 'uppercase', display: 'block' }}>
-                  {isTopUpMode ? 'Net Top-Up Disbursal' : (isODMode ? 'Sanctioned OD Limit' : 'Loan Amount')}
+                  {isTopUpMode ? 'Net Top-Up Disbursal' : (isODBT ? 'Total Sanctioned Limit' : (isODMode ? 'Sanctioned OD Limit' : 'Loan Amount'))}
                 </span>
                 <span className="value large" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '2rem', fontWeight: 800, color: isTopUpMode ? '#0284C7' : (isODMode ? '#059669' : '#f58220'), display: 'block' }}>
-                  {formatCurrency(isTopUpMode ? (bestOffer.topUpAmount || bestOffer.loanAmount) : (isODMode ? (bestOffer.odLimit || bestOffer.loanAmount) : bestOffer.loanAmount))}
+                  {formatCurrency(isTopUpMode ? (bestOffer.topUpAmount || bestOffer.loanAmount) : (isODBT ? (bestOffer.totalSanctionedLimit || bestOffer.odLimit) : (isODMode ? (bestOffer.odLimit || bestOffer.loanAmount) : bestOffer.loanAmount)))}
                 </span>
               </div>
               <div className="detail-item">
                 <span className="label" style={{ fontSize: '0.8rem', color: 'rgb(66, 66, 66)', marginBottom: '4px', fontWeight: 650, textTransform: 'uppercase', display: 'block' }}>
-                  {isODMode ? 'Daily Cost (₹1L Used)' : (isTopUpMode ? 'Top-Up Monthly EMI' : 'Monthly EMI')}
+                  {isODBT ? 'Used Limit Interest' : (isODMode ? 'Daily Cost (₹1L Used)' : (isTopUpMode ? 'Top-Up Monthly EMI' : 'Monthly EMI'))}
                 </span>
                 <span className="value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: '#1E40AF', display: 'block' }}>
-                  {isODMode ? `₹${bestOffer.dailyInterestPerLakh || Math.round((100000 * ((bestOffer.interestRate || 11.25) / 100)) / 365)}/day` : formatNumber(bestOffer.monthlyEMI)}
+                  {isODBT 
+                    ? `₹${Number(bestOffer.monthlyInterestOnUsed || 0).toLocaleString('en-IN')}/mo` 
+                    : (isODMode ? `₹${bestOffer.dailyInterestPerLakh || Math.round((100000 * ((bestOffer.interestRate || 11.25) / 100)) / 365)}/day` : formatNumber(bestOffer.monthlyEMI))}
                 </span>
               </div>
               <div className="detail-item">
@@ -1273,14 +1430,25 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
               </div>
               <div className="detail-item">
                 <span className="label" style={{ fontSize: '0.8rem', color: 'rgb(66, 66, 66)', marginBottom: '4px', fontWeight: 650, textTransform: 'uppercase', display: 'block' }}>
-                  {isODMode ? 'Repayment Facility' : 'Loan Tenure'}
+                  {isODBT ? 'Available Free Limit' : (isODMode ? 'Repayment Facility' : 'Loan Tenure')}
                 </span>
-                <span className="value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: '#1E40AF', display: 'block' }}>
-                  {isODMode ? 'Flexi (Zero Fixed EMI)' : `${bestOffer.loanTenure} years`}
+                <span className="value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: isODBT ? '#0284C7' : '#1E40AF', display: 'block' }}>
+                  {isODBT ? formatCurrency(bestOffer.availableODLimit) : (isODMode ? 'Flexi (Zero Fixed EMI)' : `${bestOffer.loanTenure} years`)}
                 </span>
               </div>
             </div>
-            {isODMode && (
+            {isODMode && isODBT && (
+              <div style={{ marginTop: '16px', padding: '12px 16px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #A7F3D0', display: 'flex', gap: '16px', fontSize: '0.88rem', color: '#047857', flexWrap: 'wrap' }}>
+                <span><strong>Total OD Sanction:</strong> {formatCurrency(bestOffer.totalSanctionedLimit || bestOffer.odLimit)}</span>
+                <span>•</span>
+                <span><strong>Old Debt Cleared (POS):</strong> - {formatCurrency(bestOffer.debtClearedPOS || bestOffer.utilizedODLimit)}</span>
+                <span>•</span>
+                <span><strong>Available Free Limit:</strong> {formatCurrency(bestOffer.availableODLimit)} (₹0 charges until drawn)</span>
+                <span>•</span>
+                <span><strong>Used Limit Interest:</strong> ₹{Number(bestOffer.monthlyInterestOnUsed || 0).toLocaleString('en-IN')}/mo</span>
+              </div>
+            )}
+            {isODMode && !isODBT && (
               <div style={{ marginTop: '16px', padding: '12px 16px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #A7F3D0', display: 'flex', gap: '16px', fontSize: '0.88rem', color: '#047857', flexWrap: 'wrap' }}>
                 <span><strong>Revolving Credit:</strong> Sanctioned limit available 24x7 for withdrawal.</span>
                 <span>•</span>
@@ -1491,6 +1659,29 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                               </div>
                             </div>
                           </div>
+                        ) : ((isODMode || bank.isOD) && (isODBT || bank.isODBT)) ? (
+                          <div className="od-bt-display" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '14px 16px', borderRadius: '10px', marginBottom: '16px' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 750, color: '#047857', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OD Balance Transfer & Debt Takeover</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                                <span style={{ color: 'rgb(66, 66, 66)', fontWeight: 500 }}>Total Sanctioned OD Limit</span>
+                                <span style={{ fontWeight: 750, color: '#047857' }}>{formatCurrency(bank.totalSanctionedLimit || bank.odLimit)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: 'rgb(66, 66, 66)' }}>
+                                <span style={{ fontWeight: 500 }}>Existing Debt Cleared (POS)</span>
+                                <span style={{ fontWeight: 750, color: '#DC2626' }}>- {formatCurrency(bank.debtClearedPOS || bank.utilizedODLimit)}</span>
+                              </div>
+                              <div style={{ height: '1px', background: '#A7F3D0', margin: '4px 0' }}></div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.98rem', color: '#0284C7', fontWeight: 800 }}>
+                                <span>Available Free OD Limit</span>
+                                <span>{formatCurrency(bank.availableODLimit)}</span>
+                              </div>
+                              <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#065F46', background: '#D1FAE5', padding: '4px 8px', borderRadius: '4px', fontWeight: 650, display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Interest on Used Balance:</span>
+                                <span style={{ fontWeight: 800 }}>₹{Number(bank.monthlyInterestOnUsed || 0).toLocaleString('en-IN')}/mo</span>
+                              </div>
+                            </div>
+                          </div>
                         ) : (isODMode || bank.isOD) ? (
                           <div className="main-amount">
                             <span className="label" style={{ color: '#059669', fontWeight: 700 }}>Sanctioned OD Limit</span>
@@ -1603,7 +1794,30 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                   </div>
 
                   <div className="details-grid">
-                    {(isODMode || bank.isOD) ? (
+                    {((isODMode || bank.isOD) && (isODBT || bank.isODBT)) ? (
+                      <>
+                        <div className="detail">
+                          <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>
+                            USED LIMIT INTEREST
+                          </span>
+                          <span className="detail-value" style={{ color: '#059669', fontWeight: 800 }}>
+                            ₹{Number(bank.monthlyInterestOnUsed || 0).toLocaleString('en-IN')}/mo
+                          </span>
+                        </div>
+                        <div className="detail">
+                          <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>
+                            OD ROI
+                          </span>
+                          <span className="detail-value" style={{ color: '#059669', fontWeight: 800 }}>{bank.interestRate}%</span>
+                        </div>
+                        <div className="detail">
+                          <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>
+                            FREE LIMIT
+                          </span>
+                          <span className="detail-value" style={{ color: '#0284C7', fontWeight: 800 }}>{formatCurrency(bank.availableODLimit)}</span>
+                        </div>
+                      </>
+                    ) : (isODMode || bank.isOD) ? (
                       <>
                         <div className="detail">
                           <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>

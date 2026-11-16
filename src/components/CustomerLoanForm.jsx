@@ -409,7 +409,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
 
   const hasBTObligations = (formData.hasExistingLoans && formData.existingLoans?.length > 0) ||
     (formData.hasCreditCards && formData.creditCards?.length > 0);
-  const isBTSelectionPending = mode === 'pl' && hasBTObligations && Boolean(formData.wantsBT) && (!formData.selectedLoansForBT || formData.selectedLoansForBT.length === 0);
+  const isBTSelectionPending = (mode === 'pl' || mode === 'od') && hasBTObligations && Boolean(formData.wantsBT) && (!formData.selectedLoansForBT || formData.selectedLoansForBT.length === 0);
 
   const [validationError, setValidationError] = useState('');
 
@@ -1667,11 +1667,11 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
 
       {/* Balance Transfer Section */}
       {
-        mode === 'pl' &&
+        (mode === 'pl' || mode === 'od') &&
         ((formData.hasExistingLoans && formData.existingLoans.length > 0) ||
          (formData.hasCreditCards && formData.creditCards && formData.creditCards.length > 0)) && (
           <div className="form-section" style={{ background: '#f0f7ff', borderLeft: '4px solid #2196f3' }}>
-            <h3>Balance Transfer Optimization</h3>
+            <h3>{mode === 'od' ? 'Overdraft Balance Transfer (OD Takeover)' : 'Balance Transfer Optimization'}</h3>
 
             <div className="form-group checkbox-group">
               <label>
@@ -1681,16 +1681,20 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
                   checked={formData.wantsBT}
                   onChange={handleInputChange}
                 />
-                <strong>Yes, I want to do Balance Transfer</strong>
+                <strong>{mode === 'od' ? 'Yes, I want to transfer existing loans to OD Limit' : 'Yes, I want to do Balance Transfer'}</strong>
               </label>
               <small className="help-text" style={{ display: 'block', marginTop: '5px', marginLeft: '24px' }}>
-                Select which specific loans or credit cards you want to transfer to a new bank with better rates
+                {mode === 'od'
+                  ? 'Selected loans will be cleared using your OD limit. The POS amount is deducted from your limit and you only pay flexible daily/monthly interest on the utilized balance.'
+                  : 'Select which specific loans or credit cards you want to transfer to a new bank with better rates'}
               </small>
             </div>
 
             {formData.wantsBT && (
               <div style={{ marginTop: '20px' }}>
-                <h4 style={{ marginBottom: '15px', color: '#1976d2' }}>Select Loans / Cards for Balance Transfer:</h4>
+                <h4 style={{ marginBottom: '15px', color: '#1976d2' }}>
+                  {mode === 'od' ? 'Select Loans / Cards for Overdraft Takeover:' : 'Select Loans / Cards for Balance Transfer:'}
+                </h4>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {formData.hasExistingLoans && formData.existingLoans.map((loan, index) => {
@@ -1733,12 +1737,12 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
                                 background: isSelected ? '#DBEAFE' : '#F1F5F9',
                                 color: isSelected ? '#1E40AF' : '#64748B'
                               }}>
-                                {isSelected ? '✓ Selected for BT' : 'Click to Select'}
+                                {isSelected ? (mode === 'od' ? '✓ Takeover to OD' : '✓ Selected for BT') : 'Click to Select'}
                               </span>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '0.9em', color: '#64748b' }}>
                               <div>🏦 <strong>Bank:</strong> <span style={{ textTransform: 'capitalize', color: '#1e293b' }}>{loan.lender || 'Not specified'}</span></div>
-                              <div>💵 <strong>Outstanding:</strong> <span style={{ color: '#1e293b', fontWeight: 600 }}>₹{loan.outstandingAmount ? parseFloat(loan.outstandingAmount).toLocaleString('en-IN') : '0'}</span></div>
+                              <div>💵 <strong>Outstanding (POS):</strong> <span style={{ color: '#1e293b', fontWeight: 600 }}>₹{loan.outstandingAmount ? parseFloat(loan.outstandingAmount).toLocaleString('en-IN') : '0'}</span></div>
                               <div>💳 <strong>EMI:</strong> <span style={{ color: '#1e293b', fontWeight: 600 }}>₹{loan.monthlyEMI ? parseFloat(loan.monthlyEMI).toLocaleString('en-IN') : '0'}</span></div>
                             </div>
                           </div>
@@ -1787,7 +1791,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
                                 background: isSelected ? '#CFFAFE' : '#F1F5F9',
                                 color: isSelected ? '#0369a1' : '#64748B'
                               }}>
-                                {isSelected ? '✓ Selected for BT' : 'Click to Select'}
+                                {isSelected ? (mode === 'od' ? '✓ Takeover to OD' : '✓ Selected for BT') : 'Click to Select'}
                               </span>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '0.9em', color: '#64748b' }}>
