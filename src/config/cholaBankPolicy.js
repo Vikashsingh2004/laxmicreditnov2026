@@ -48,6 +48,9 @@ export const CHOLA_BANK_EXCEL_POLICY = {
     ccObligationPercent: 5, // 5% OBLIGATION
     allowCcBt: true,
     ccBtAllowedCount: 6, // 6 CCBT ALLOW
-    maxCcBtSalaryMultiplier: 6 // 6 TIME NOT ALLOW FOR BT (CC BT POS > 6x salary not allowed)
+    maxCcBtSalaryMultiplier: 6,
+    allowPlBt: true,
+    plBtAllowedCount: 4,
+    totalBtCaseCap: 6
   }
 };

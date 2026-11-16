@@ -100,32 +100,14 @@ function CustomerFacingApp() {
 
       if (hasLoansForBT) {
         console.log('🔄 BT MODE DETECTED!');
-        const existingLoans = personalLoansInBT.map(loan => ({
-          loanName: loan.lender || 'Loan',
-          emi: parseFloat(loan.monthlyEMI || 0),
-          pos: parseFloat(loan.outstandingAmount || 0)
-        }));
-        const creditCards = creditCardsInBT.map(card => ({
-          cardName: card.lender || 'Credit Card',
-          outstandingAmount: parseFloat(card.creditLimitUsed || 0)
-        }));
-        const btData = {
-          basicSalary: parseFloat(submissionData.basicSalary || 0),
-          averageIncentive: parseFloat(submissionData.averageIncentive || 0),
-          monthlyIncome: parseFloat(submissionData.monthlyIncome || 0),
-          loanTenure: parseInt(submissionData.loanTenure || 5),
-          category: submissionData.category || 'A',
-          companyName: submissionData.companyName || '',
-          creditScore: parseInt(submissionData.creditScore || 700),
-          employmentType: submissionData.employmentType || 'salaried',
-          existingEMI: parseFloat(submissionData.existingEMI || 0),
-          creditCardObligation: parseFloat(submissionData.creditCardObligation || 0),
-          hasPpfDeduction: submissionData.hasPpfDeduction !== undefined ? submissionData.hasPpfDeduction : true,
-          hasPfDeduction: submissionData.hasPpfDeduction !== undefined ? submissionData.hasPpfDeduction : true,
-          existingLoans: existingLoans,
-          creditCards: creditCards
+        const fullBtSubmission = {
+          ...submissionData,
+          isBTMode: true,
+          wantsBT: true,
+          loansForBT: submissionData.loansForBT,
+          selectedLoansForBT: submissionData.loansForBT
         };
-        calculationResults = await calculateBTWithCreditCards(btData);
+        calculationResults = await calculateLoanEligibility(fullBtSubmission);
       } else {
         console.log('💰 REGULAR LOAN CALCULATION');
         calculationResults = await calculateLoanEligibility(submissionData);

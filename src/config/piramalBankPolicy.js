@@ -54,6 +54,9 @@ export const PIRAMAL_BANK_EXCEL_POLICY = {
     maxPlBtAllowed: 1,
     ccBtAllowedCount: 2,
     requirePlBtWithCcBt: true,
-    btPolicyDescription: '2 CC BT ALLOW WITH 1 PL BT (1 PL BT + 2 CC BT Allowed)'
+    btPolicyDescription: '2 CC BT ALLOW WITH 1 PL BT (1 PL BT + 2 CC BT Allowed)',
+    allowPlBt: true,
+    plBtAllowedCount: 3,
+    totalBtCaseCap: 3
   }
 };

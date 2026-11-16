@@ -132,6 +132,9 @@ export const LNT_BANK_EXCEL_POLICY = {
     minCibilScore: 720,
     ccObligationPercent: 5,
     allowCcBt: false,
-    ccBtAllowedCount: 0
+    ccBtAllowedCount: 0,
+    allowPlBt: true,
+    plBtAllowedCount: 6,
+    totalBtCaseCap: 6
   }
 };

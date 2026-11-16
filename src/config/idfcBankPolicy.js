@@ -41,7 +41,12 @@ export const IDFC_BANK_EXCEL_POLICY = {
     minExperienceTotal: 3, // 3 months for <= 15L, 2 years for >15L
     minExperienceCurrent: 3,
     minCibilScore: 0,
-    ccObligationPercent: 5
+    ccObligationPercent: 5,
+    allowPlBt: true,
+    plBtAllowedCount: 3,
+    allowCcBt: true,
+    ccBtAllowedCount: 3,
+    totalBtCaseCap: 6
   },
   // Table 1: FOIR Matrix
   idfcFoirMatrix: [

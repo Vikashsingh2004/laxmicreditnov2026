@@ -135,89 +135,124 @@ export const calculateFullBT = async (customerInfo, existingLiabilities) => {
   };
 
   const results = allBanks.map(({ id, name, calculator }) => {
-    // 1. Bandhan Bank special rejection
-    if (id === 'bandhan') {
-      return { 
-        bankName: name, 
-        eligible: false, 
-        reason: 'We do not support BT in Personal Loans',
-        isBTMode: true 
-      };
-    }
-
     try {
       const adminAllConfig = getAllBankConfig(name, { state, city });
       const btConfig = adminAllConfig.btConfiguration || {};
       const config = adminAllConfig.bankConfig || {};
 
-      // Check if EXPLICITLY disabled in Admin
-      if (btConfig.enabled === false) {
-        return { bankName: name, eligible: false, reason: `${name} policy: BT currently disabled via Admin override.` };
-      }
-
-      // IndusInd Bank Excel Policy: CC BT Not Allowed
-      if ((id === 'indusind' || name === 'IndusInd Bank') && activeLiabilities.some(l => l.type === 'Credit Card' || l.type === 'credit_card')) {
-        return {
-          bankName: name,
-          eligible: false,
-          reason: 'Credit Card Balance Transfer is not permitted for IndusInd Bank (CC BT Not Allowed as per policy).',
-          isBTMode: true
+      // Check if EXPLICITLY disabled in Admin or InCred (Fresh Only)
+      if (btConfig.enabled === false || id === 'incred' || name.toLowerCase().includes('incred')) {
+        return { 
+          bankName: name, 
+          eligible: false, 
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} policy: Fresh Funding only (Balance Transfer is Not Allowed).` 
         };
       }
 
-      // Piramal Finance Excel Policy: 2 CC BT ALLOW WITH 1 PL BT
-      if (id === 'piramal' || name?.toLowerCase().includes('piramal')) {
-        const plBt = activeLiabilities.filter(l => l.type !== 'Credit Card' && l.type !== 'credit_card');
-        const ccBt = activeLiabilities.filter(l => l.type === 'Credit Card' || l.type === 'credit_card');
+      const ccBt = activeLiabilities.filter(l => l.type === 'Credit Card' || l.type === 'credit_card');
+      const plBt = activeLiabilities.filter(l => l.type !== 'Credit Card' && l.type !== 'credit_card' && !String(l.type || '').toLowerCase().includes('app'));
+      const appBt = activeLiabilities.filter(l => String(l.type || '').toLowerCase().includes('app'));
+      const numCcBt = ccBt.length;
+      const numPlBt = plBt.length;
+      const numAppBt = appBt.length;
+      const totalBt = activeLiabilities.length;
 
-        if (plBt.length > 1) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: `Piramal Finance permits maximum 1 Personal Loan for Balance Transfer (found ${plBt.length}). Policy: 2 CC BT ALLOW WITH 1 PL BT`,
-            isBTMode: true
-          };
-        }
-        if (ccBt.length > 2) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: `Piramal Finance permits maximum 2 Credit Cards for Balance Transfer (found ${ccBt.length}). Policy: 2 CC BT ALLOW WITH 1 PL BT`,
-            isBTMode: true
-          };
-        }
-        if (ccBt.length > 0 && plBt.length === 0) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: 'Piramal Finance requires 1 Personal Loan BT along with Credit Card BT. Standalone Credit Card BT is not allowed (Policy: 2 CC BT ALLOW WITH 1 PL BT).',
-            isBTMode: true
-          };
-        }
+      // 1. Credit Card BT Strictly Prohibited Banks (IndusInd, HDFC, ICICI, Kotak, Bandhan, L&T, AU Bank)
+      const isCcProhibited = ['indusind', 'hdfc', 'icici', 'kotak', 'bandhan', 'lnt', 'au-bank'].includes(id) ||
+        name === 'IndusInd Bank' || name === 'HDFC Bank' || name === 'ICICI Bank' || 
+        name.toLowerCase().includes('kotak') || name.toLowerCase().includes('bandhan') || 
+        name.toLowerCase().includes('l&t') || name.toLowerCase().includes('au ') || btConfig.allowCcBt === false;
+
+      if (numCcBt > 0 && isCcProhibited) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `Credit Card Balance Transfer is Not Allowed for ${name} (Only Personal Loan BT Allowed as per policy).`
+        };
       }
 
-      // SMFG India Credit Excel Policy: MAX CC BT: 2 CC BT
-      if (id === 'smfg' || name?.toLowerCase().includes('smfg')) {
-        const ccBt = activeLiabilities.filter(l => l.type === 'Credit Card' || l.type === 'credit_card');
-        if (ccBt.length > 2) {
+      // 2. PL BT Limits
+      const maxPl = btConfig.maxPlBtCount ?? (id === 'kotak' || id === 'smfg' ? 999 : (id === 'axisfin' ? 7 : (id === 'tata' || id === 'lnt' ? 6 : (id === 'axis-bank' || id === 'indusind' || id === 'poonawala' ? 5 : (id === 'chola' || id === 'abfl' ? 4 : 3)))));
+      if (numPlBt > maxPl) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} allows maximum ${maxPl} Personal Loan(s) for Balance Transfer (${numPlBt} selected).`
+        };
+      }
+
+      // 3. CC BT Limits
+      const maxCc = btConfig.maxCcBtCount ?? (id === 'axisfin' ? 7 : (id === 'tata' || id === 'chola' || id === 'poonawala' ? 6 : (id === 'axis-bank' || id === 'abfl' ? 5 : (id === 'idfc' ? 3 : (id === 'piramal' || id === 'smfg' ? 2 : 0)))));
+      if (numCcBt > maxCc) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} allows maximum ${maxCc} Credit Card(s) for Balance Transfer (${numCcBt} selected).`
+        };
+      }
+
+      // 4. Total Combined BT Case Cap
+      const maxTotal = btConfig.totalBtCaseCap ?? (id === 'kotak' || id === 'smfg' ? 999 : (id === 'poonawala' ? 8 : (id === 'axisfin' ? 7 : (id === 'tata' || id === 'chola' || id === 'idfc' || id === 'abfl' || id === 'lnt' ? 6 : (id === 'axis-bank' || id === 'indusind' ? 5 : 3)))));
+      if (totalBt > maxTotal) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} allows maximum ${maxTotal} total liabilities for Balance Transfer (${totalBt} selected).`
+        };
+      }
+
+      // 5. Piramal Standalone CC BT Prohibited
+      if ((id === 'piramal' || name.toLowerCase().includes('piramal')) && numCcBt > 0 && numPlBt === 0) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: 'Piramal Finance allows Credit Card BT only WITH at least 1 Personal Loan BT (Standalone CC BT is Not Allowed as per policy).'
+        };
+      }
+
+      // 6. Credit Card POS Limits (Poonawalla <= 4x, Chola <= 6x, ABFL <= 6x)
+      const ccPos = ccBt.reduce((sum, l) => sum + (parseFloat(l.outstandingAmount) || 0), 0);
+      const mIncome = parseFloat(customerInfo.monthlyIncome || 0);
+      if (mIncome > 0) {
+        if ((id === 'poonawala' || name.toLowerCase().includes('poonawala')) && ccPos > (mIncome * 4)) {
           return {
             bankName: name,
             eligible: false,
-            reason: `SMFG India Credit allows maximum 2 Credit Cards for Balance Transfer (found ${ccBt.length}). Policy: 2 CC BT`,
-            isBTMode: true
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Poonawalla policy restricts Credit Card Outstanding exceeding 4x monthly income.`
           };
         }
-      }
-
-      // Fallback to local config if Admin hasn't specified
-      if (btConfig.enabled === undefined && config.btConfig && !config.btConfig.isAvailable) {
-        return { bankName: name, eligible: false, reason: `${name} does not offer Balance Transfer facility for personal loans` };
-      }
-
-      // Check Loan Capping
-      const maxLoans = btConfig.maxHistoryLoans || 5;
-      if (activeLiabilities.length > maxLoans) {
-        return { bankName: name, eligible: false, reason: `Policy: Maximum ${maxLoans} existing loans allowed for BT.` };
+        if ((id === 'chola' || name.toLowerCase().includes('chola')) && ccPos > (mIncome * 6)) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Chola Finance policy restricts Credit Card Outstanding exceeding 6x monthly income.`
+          };
+        }
+        if ((id === 'abfl' || name.toLowerCase().includes('abfl')) && ccPos > (mIncome * 6)) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Aditya Birla Finance restricts Credit Card Outstanding exceeding 6x monthly income.`
+          };
+        }
       }
 
       const result = calculator(btInput, adminAllConfig.bankConfig);
@@ -286,31 +321,87 @@ export const calculatePartialBT = async (customerInfo, existingLiabilities, sele
   };
 
   const results = allBanks.map(({ id, name, calculator }) => {
-    if (id === 'bandhan') {
-      return { 
-        bankName: name, 
-        eligible: false, 
-        reason: 'We do not support BT in Personal Loans',
-        isBTMode: true 
-      };
-    }
-
     try {
       const adminAllConfig = getAllBankConfig(name, { state, city });
       const btConfig = adminAllConfig.btConfiguration || {};
       const config = adminAllConfig.bankConfig || {};
 
-      if (btConfig.enabled === false) {
-        return { bankName: name, eligible: false, reason: `${name} policy: BT currently disabled.` };
+      if (btConfig.enabled === false || id === 'incred' || name.toLowerCase().includes('incred')) {
+        return { 
+          bankName: name, 
+          eligible: false, 
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} policy: Fresh Funding only (Balance Transfer is Not Allowed).` 
+        };
       }
 
-      // IndusInd Bank Excel Policy: CC BT Not Allowed
-      if ((id === 'indusind' || name === 'IndusInd Bank') && selectedLiabilities.some(l => l.type === 'Credit Card' || l.type === 'credit_card')) {
+      const ccBt = selectedLiabilities.filter(l => l.type === 'Credit Card' || l.type === 'credit_card');
+      const plBt = selectedLiabilities.filter(l => l.type !== 'Credit Card' && l.type !== 'credit_card' && !String(l.type || '').toLowerCase().includes('app'));
+      const numCcBt = ccBt.length;
+      const numPlBt = plBt.length;
+      const totalBt = selectedLiabilities.length;
+
+      // 1. CC BT Prohibited Banks
+      const isCcProhibited = ['indusind', 'hdfc', 'icici', 'kotak', 'bandhan', 'lnt', 'au-bank'].includes(id) ||
+        name === 'IndusInd Bank' || name === 'HDFC Bank' || name === 'ICICI Bank' || 
+        name.toLowerCase().includes('kotak') || name.toLowerCase().includes('bandhan') || 
+        name.toLowerCase().includes('l&t') || name.toLowerCase().includes('au ') || btConfig.allowCcBt === false;
+
+      if (numCcBt > 0 && isCcProhibited) {
         return {
           bankName: name,
           eligible: false,
-          reason: 'Credit Card Balance Transfer is not permitted for IndusInd Bank (CC BT Not Allowed as per policy).',
-          isBTMode: true
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `Credit Card Balance Transfer is Not Allowed for ${name} (Only Personal Loan BT Allowed as per policy).`
+        };
+      }
+
+      // 2. PL BT Limits
+      const maxPl = btConfig.maxPlBtCount ?? (id === 'kotak' || id === 'smfg' ? 999 : (id === 'axisfin' ? 7 : (id === 'tata' || id === 'lnt' ? 6 : (id === 'axis-bank' || id === 'indusind' || id === 'poonawala' ? 5 : (id === 'chola' || id === 'abfl' ? 4 : 3)))));
+      if (numPlBt > maxPl) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} allows maximum ${maxPl} Personal Loan(s) for Balance Transfer (${numPlBt} selected).`
+        };
+      }
+
+      // 3. CC BT Limits
+      const maxCc = btConfig.maxCcBtCount ?? (id === 'axisfin' ? 7 : (id === 'tata' || id === 'chola' || id === 'poonawala' ? 6 : (id === 'axis-bank' || id === 'abfl' ? 5 : (id === 'idfc' ? 3 : (id === 'piramal' || id === 'smfg' ? 2 : 0)))));
+      if (numCcBt > maxCc) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} allows maximum ${maxCc} Credit Card(s) for Balance Transfer (${numCcBt} selected).`
+        };
+      }
+
+      // 4. Total Combined BT Case Cap
+      const maxTotal = btConfig.totalBtCaseCap ?? (id === 'kotak' || id === 'smfg' ? 999 : (id === 'poonawala' ? 8 : (id === 'axisfin' ? 7 : (id === 'tata' || id === 'chola' || id === 'idfc' || id === 'abfl' || id === 'lnt' ? 6 : (id === 'axis-bank' || id === 'indusind' ? 5 : 3)))));
+      if (totalBt > maxTotal) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: `${name} allows maximum ${maxTotal} total liabilities for Balance Transfer (${totalBt} selected).`
+        };
+      }
+
+      // 5. Piramal Standalone CC BT Prohibited
+      if ((id === 'piramal' || name.toLowerCase().includes('piramal')) && numCcBt > 0 && numPlBt === 0) {
+        return {
+          bankName: name,
+          eligible: false,
+          isBTMode: true,
+          btNotAllowed: true,
+          reason: 'Piramal Finance allows Credit Card BT only WITH at least 1 Personal Loan BT (Standalone CC BT is Not Allowed as per policy).'
         };
       }
 

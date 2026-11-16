@@ -100,18 +100,26 @@ export const calculateLoanEligibility = async (userData) => {
   console.log('📄 Input received:', userData);
 
   // Check if this is a Balance Transfer request
-  const isBTMode = userData.wantsBT && userData.selectedLoansForBT && userData.selectedLoansForBT.length > 0;
+  const btLoansList = (userData.loansForBT && userData.loansForBT.length > 0)
+    ? userData.loansForBT
+    : (userData.selectedLoansForBT && userData.selectedLoansForBT.length > 0)
+      ? userData.selectedLoansForBT
+      : [];
+  const isBTMode = Boolean(userData.isBTMode || (userData.wantsBT && btLoansList.length > 0));
 
   console.log(`🔄 Mode: ${isBTMode ? 'BALANCE TRANSFER' : 'REGULAR LOAN'}`);
 
+  let btTotalEMI = 0;
+  let btTotalOutstanding = 0;
+
   if (isBTMode) {
     console.log('📦 BT Loan Details:');
-    console.log('  - Selected loans:', userData.selectedLoansForBT.length);
-    console.log('  - Loans for BT:', userData.loansForBT);
+    console.log('  - Selected loans:', btLoansList.length);
+    console.log('  - Loans for BT:', btLoansList);
 
     // Calculate totals for selected BT loans
-    const btTotalEMI = (userData.loansForBT || []).reduce((sum, loan) => sum + (parseFloat(loan.monthlyEMI) || 0), 0);
-    const btTotalOutstanding = (userData.loansForBT || []).reduce((sum, loan) => sum + (parseFloat(loan.outstandingAmount) || 0), 0);
+    btTotalEMI = btLoansList.reduce((sum, loan) => sum + (parseFloat(loan.monthlyEMI) || parseFloat(loan.emi) || parseFloat(loan.monthlyPayment) || 0), 0);
+    btTotalOutstanding = btLoansList.reduce((sum, loan) => sum + (parseFloat(loan.outstandingAmount) || parseFloat(loan.pos) || parseFloat(loan.creditLimitUsed) || parseFloat(loan.balance) || parseFloat(loan.amount) || 0), 0);
 
     console.log(`  - Total BT EMI: ₹${btTotalEMI.toLocaleString()}`);
     console.log(`  - Total BT Outstanding: ₹${btTotalOutstanding.toLocaleString()}`);
@@ -146,9 +154,9 @@ export const calculateLoanEligibility = async (userData) => {
           .reduce((sum, card) => sum + ((parseFloat(card.outstandingAmount) || 0) * 0.05), 0),
     // Balance Transfer specific data
     isBTMode: isBTMode,
-    loansForBT: isBTMode ? (userData.loansForBT || []) : [],
-    btTotalEMI: isBTMode ? (userData.loansForBT || []).reduce((sum, loan) => sum + (parseFloat(loan.monthlyEMI) || 0), 0) : 0,
-    btTotalOutstanding: isBTMode ? (userData.loansForBT || []).reduce((sum, loan) => sum + (parseFloat(loan.outstandingAmount) || 0), 0) : 0,
+    loansForBT: isBTMode ? btLoansList : [],
+    btTotalEMI: isBTMode ? btTotalEMI : 0,
+    btTotalOutstanding: isBTMode ? btTotalOutstanding : 0,
     // PF / PPF Salary Deduction toggle
     hasPpfDeduction: userData.hasPpfDeduction !== undefined ? userData.hasPpfDeduction : (userData.hasPfDeduction !== undefined ? userData.hasPfDeduction : true),
     hasPfDeduction: userData.hasPfDeduction !== undefined ? userData.hasPfDeduction : (userData.hasPpfDeduction !== undefined ? userData.hasPpfDeduction : true),
@@ -322,188 +330,162 @@ const matchCategory = (cat1, cat2) => {
         return { bankName: name, eligible: false, reason: 'Cheque salaries not accepted by this institution.', category: 'REJECTED' };
       }
 
-      // 1.5 CC BT RESTRICTION GATES from Excel Policies:
+      // 1.5 COMPREHENSIVE BALANCE TRANSFER (BT) RESTRICTION GATES (from BT_Policy_Rules_Exact.xlsx)
       if (calculatorInput.isBTMode) {
-        const ccBtLoans = (calculatorInput.loansForBT || []).filter(l => l.type === 'Credit Card' || l.type === 'credit_card');
-        const hasCcInBt = ccBtLoans.length > 0;
+        // InCred Finance: ONLY FRESH FUNDING ALLOWED (0 BT ALLOWED)
+        const isIncredInst = id === 'incred' || name.toLowerCase().includes('incred') || adminAllConfig.btConfiguration?.isFreshOnly === true;
+        if (isIncredInst) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: 'InCred Finance only supports Fresh Funding. Balance Transfer is Not Allowed as per policy.',
+            category: 'REJECTED'
+          };
+        }
+
+        const btLoans = calculatorInput.loansForBT || [];
+        const ccBtLoans = btLoans.filter(l => {
+          const t = String(l.type || l.loanType || '').toLowerCase();
+          return t.includes('card') || t.includes('cc');
+        });
+        const appBtLoans = btLoans.filter(l => {
+          const t = String(l.type || l.loanType || '').toLowerCase();
+          return t.includes('app');
+        });
+        const plBtLoans = btLoans.filter(l => {
+          const t = String(l.type || l.loanType || '').toLowerCase();
+          return !t.includes('card') && !t.includes('cc') && !t.includes('app');
+        });
+
         const numCcBt = ccBtLoans.length;
+        const numPlBt = plBtLoans.length;
+        const numAppBt = appBtLoans.length;
+        const totalBtCount = btLoans.length;
+        const hasCcInBt = numCcBt > 0;
+        const hasPlInBt = numPlBt > 0;
 
-        // IndusInd Bank: CC BT NOT ALLOW
-        if (hasCcInBt && (name === 'IndusInd Bank' || id === 'indusind')) {
+        // 1. Credit Card BT Strictly Prohibited Banks (IndusInd, HDFC, ICICI, Kotak, Bandhan, L&T, AU Bank)
+        const isCcBtProhibitedBank = [
+          'indusind', 'hdfc', 'icici', 'kotak', 'bandhan', 'lnt', 'au-bank', 'au'
+        ].includes(id) || name === 'IndusInd Bank' || name === 'HDFC Bank' || name === 'ICICI Bank' || 
+        name.toLowerCase().includes('kotak') || name.toLowerCase().includes('bandhan') || 
+        name.toLowerCase().includes('l&t') || name.toLowerCase().includes('lnt') || 
+        name.toLowerCase().includes('au ') || adminAllConfig.btConfiguration?.allowCcBt === false || 
+        uPolicy?.demographics?.allowCcBt === false;
+
+        if (hasCcInBt && isCcBtProhibitedBank) {
           return {
             bankName: name,
             eligible: false,
-            reason: 'Credit Card Balance Transfer is not permitted for IndusInd Bank (CC BT Not Allowed as per policy).',
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Credit Card Balance Transfer is Not Allowed for ${name} (Only Personal Loan BT Allowed as per policy).`,
             category: 'REJECTED'
           };
         }
-        // Kotak Mahindra Bank: CC BT NOT ALLOW
-        if (hasCcInBt && (name.toLowerCase().includes('kotak') || id === 'kotak')) {
+
+        // 2. Personal Loan BT Count Gate
+        let maxPlAllowed = adminAllConfig.btConfiguration?.maxPlBtCount ?? uPolicy?.demographics?.plBtAllowedCount;
+        if (maxPlAllowed === undefined) {
+          if (id === 'kotak' || id === 'smfg') maxPlAllowed = 999;
+          else if (id === 'axis' || id === 'axis-fin') maxPlAllowed = 7;
+          else if (id === 'tata' || id === 'lnt') maxPlAllowed = 6;
+          else if (id === 'axis-bank' || id === 'indusind' || id === 'poonawala') maxPlAllowed = 5;
+          else if (id === 'chola' || id === 'abfl') maxPlAllowed = 4;
+          else if (id === 'incred') maxPlAllowed = 0;
+          else maxPlAllowed = 3;
+        }
+        if (numPlBt > maxPlAllowed) {
           return {
             bankName: name,
             eligible: false,
-            reason: 'Credit Card Balance Transfer is not permitted for Kotak Mahindra Bank (CC BT Not Allowed as per policy).',
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `${name} allows maximum ${maxPlAllowed} Personal Loan(s) for Balance Transfer (${numPlBt} selected).`,
             category: 'REJECTED'
           };
         }
-        // Bandhan Bank: CC BT NOT ALLOW
-        if (hasCcInBt && (name.toLowerCase().includes('bandhan') || id === 'bandhan')) {
+
+        // 3. Credit Card BT Count Gate
+        let maxCcAllowed = adminAllConfig.btConfiguration?.maxCcBtCount ?? uPolicy?.demographics?.ccBtAllowedCount;
+        if (maxCcAllowed === undefined) {
+          if (id === 'axis' || id === 'axis-fin') maxCcAllowed = 7;
+          else if (id === 'tata' || id === 'chola' || id === 'poonawala') maxCcAllowed = 6;
+          else if (id === 'axis-bank' || id === 'abfl') maxCcAllowed = 5;
+          else if (id === 'idfc') maxCcAllowed = 3;
+          else if (id === 'piramal' || id === 'smfg') maxCcAllowed = 2;
+          else maxCcAllowed = 0;
+        }
+        if (numCcBt > maxCcAllowed) {
           return {
             bankName: name,
             eligible: false,
-            reason: 'Credit Card Balance Transfer is not permitted for Bandhan Bank (CC BT Not Allowed as per policy).',
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `${name} allows maximum ${maxCcAllowed} Credit Card(s) for Balance Transfer (${numCcBt} selected).`,
             category: 'REJECTED'
           };
         }
-        // L&T Finance: CC BT NOT ALLOW
-        if (hasCcInBt && (name.toLowerCase().includes('l&t') || name.toLowerCase().includes('lnt') || id === 'lnt')) {
+
+        // 4. Total Combined Case Capping Gate
+        let maxTotalBtCap = adminAllConfig.btConfiguration?.totalBtCaseCap ?? uPolicy?.demographics?.totalBtCaseCap;
+        if (maxTotalBtCap === undefined) {
+          if (id === 'kotak' || id === 'smfg') maxTotalBtCap = 999;
+          else if (id === 'poonawala') maxTotalBtCap = 8;
+          else if (id === 'axis' || id === 'axis-fin') maxTotalBtCap = 7;
+          else if (id === 'tata' || id === 'chola' || id === 'idfc' || id === 'abfl' || id === 'lnt') maxTotalBtCap = 6;
+          else if (id === 'axis-bank' || id === 'indusind') maxTotalBtCap = 5;
+          else if (id === 'incred') maxTotalBtCap = 0;
+          else maxTotalBtCap = 3;
+        }
+        if (totalBtCount > maxTotalBtCap) {
           return {
             bankName: name,
             eligible: false,
-            reason: 'Credit Card Balance Transfer is not permitted for L&T Finance (CC BT Not Allowed as per policy).',
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `${name} allows maximum ${maxTotalBtCap} total liabilities for Balance Transfer (${totalBtCount} selected).`,
             category: 'REJECTED'
           };
         }
-        // AU Small Finance Bank: ONLY PL BT ALLOWED
-        if (hasCcInBt && (name.toLowerCase().includes('au ') || id === 'au-bank' || id === 'au')) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: 'Credit Card Balance Transfer is not permitted for AU Small Finance Bank (Only Personal Loan BT Allowed).',
-            category: 'REJECTED'
-          };
-        }
-        // Piramal Finance: 2 CC BT ALLOW WITH 1 PL BT
+
+        // 5. Piramal Finance Policy: 2 CC BT ALLOW WITH 3 PL BT (Standalone CC BT not allowed)
         if (name.toLowerCase().includes('piramal') || id === 'piramal') {
-          const plBtLoans = (calculatorInput.loansForBT || []).filter(l => l.type !== 'Credit Card' && l.type !== 'credit_card' && l.loanType !== 'credit_card');
-          if (plBtLoans.length > 1) {
+          if (numCcBt > 0 && numPlBt === 0) {
             return {
               bankName: name,
               eligible: false,
-              reason: `Piramal Finance allows maximum 1 Personal Loan for Balance Transfer (${plBtLoans.length} selected). Policy: 2 CC BT ALLOW WITH 1 PL BT.`,
-              category: 'REJECTED'
-            };
-          }
-          if (numCcBt > 2) {
-            return {
-              bankName: name,
-              eligible: false,
-              reason: `Piramal Finance allows maximum 2 Credit Card BTs with 1 Personal Loan BT (${numCcBt} selected). Policy: 2 CC BT ALLOW WITH 1 PL BT.`,
-              category: 'REJECTED'
-            };
-          }
-          if (numCcBt > 0 && plBtLoans.length === 0) {
-            return {
-              bankName: name,
-              eligible: false,
-              reason: 'Piramal Finance allows Credit Card Balance Transfer only WITH 1 Personal Loan BT (Policy: 2 CC BT ALLOW WITH 1 PL BT). Standalone Credit Card BT is not allowed.',
+              isBTMode: true,
+              btNotAllowed: true,
+              reason: 'Piramal Finance allows Credit Card BT only WITH at least 1 Personal Loan BT (Standalone CC BT is Not Allowed as per policy).',
               category: 'REJECTED'
             };
           }
         }
-        // SMFG India Credit: Max 2 CC BT allowed
-        if (numCcBt > 2 && (name.toLowerCase().includes('smfg') || id === 'smfg')) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: `SMFG India Credit allows maximum 2 Credit Card BTs (${numCcBt} selected).`,
-            category: 'REJECTED'
-          };
-        }
-        // Tata Capital: Max 5 CC BT allowed
-        if (numCcBt > 5 && (name.toLowerCase().includes('tata') || id === 'tata')) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: `Tata Capital allows maximum 5 Credit Card BTs (${numCcBt} selected).`,
-            category: 'REJECTED'
-          };
-        }
-        // Axis Bank & Axis Finance: Max 5 CC BT allowed
-        if (numCcBt > 5 && (name.toLowerCase().includes('axis') || id.includes('axis'))) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: `${name} allows maximum 5 Credit Card BTs (${numCcBt} selected).`,
-            category: 'REJECTED'
-          };
-        }
-        // Aditya Birla Finance: Max 5 CC BT allowed
-        if (numCcBt > 5 && (name.toLowerCase().includes('aditya') || name.toLowerCase().includes('abfl') || id === 'abfl')) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: `Aditya Birla Finance allows maximum 5 Credit Card BTs (${numCcBt} selected).`,
-            category: 'REJECTED'
-          };
-        }
-        // Poonawalla Fincorp: Max total 8 BTs (Combination of 3 APP LOAN / 3 CC / 2 PL or OD) - Excel Row 96
-        if (name.toLowerCase().includes('poonawala') || name.toLowerCase().includes('poonawalla') || id === 'poonawala') {
-          const totalBtCount = (calculatorInput.loansForBT || []).length;
-          const appLoanCount = (calculatorInput.loansForBT || []).filter(l => String(l.type || l.loanType || '').toLowerCase().includes('app')).length;
-          const plBtCount = (calculatorInput.loansForBT || []).filter(l => {
-            const t = String(l.type || l.loanType || '').toLowerCase();
-            return !t.includes('card') && !t.includes('app');
-          }).length;
 
-          if (totalBtCount > 8) {
-            return {
-              bankName: name,
-              eligible: false,
-              reason: `Poonawalla Fincorp allows maximum 8 total loans for Balance Transfer (${totalBtCount} selected). Excel Row 96: MAX TOTAL 8.`,
-              category: 'REJECTED'
-            };
-          }
-          if (numCcBt > 3) {
-            return {
-              bankName: name,
-              eligible: false,
-              reason: `Poonawalla Fincorp allows maximum 3 Credit Card BTs (${numCcBt} selected). Excel Row 96: MAX 3 CC.`,
-              category: 'REJECTED'
-            };
-          }
-          if (appLoanCount > 3) {
-            return {
-              bankName: name,
-              eligible: false,
-              reason: `Poonawalla Fincorp allows maximum 3 App Loan BTs (${appLoanCount} selected). Excel Row 96: MAX 3 APP LOAN.`,
-              category: 'REJECTED'
-            };
-          }
-          if (plBtCount > 2) {
-            return {
-              bankName: name,
-              eligible: false,
-              reason: `Poonawalla Fincorp allows maximum 2 Personal Loan or OD BTs (${plBtCount} selected). Excel Row 96: MAX 2 PL OR OD.`,
-              category: 'REJECTED'
-            };
-          }
-        }
-        // Chola Finance: Max 6 CC BT allowed
-        if (numCcBt > 6 && (name.toLowerCase().includes('chola') || id === 'chola')) {
+        // 6. Poonawalla Fincorp: Max 3 App Loans
+        if ((name.toLowerCase().includes('poonawala') || name.toLowerCase().includes('poonawalla') || id === 'poonawala') && numAppBt > 3) {
           return {
             bankName: name,
             eligible: false,
-            reason: `Chola Finance allows maximum 6 Credit Card BTs (${numCcBt} selected).`,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Poonawalla Fincorp allows maximum 3 App Loan BTs (${numAppBt} selected). Policy: MAX 3 APP LOAN.`,
             category: 'REJECTED'
           };
         }
 
-        // CC BT POS limits:
-        const btCreditCardPOS = ccBtLoans.reduce((sum, loan) => sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || 0), 0);
+        // 7. Credit Card POS Limits (Poonawalla <= 4x, Chola <= 6x, ABFL <= 6x)
+        const btCreditCardPOS = ccBtLoans.reduce((sum, loan) => sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || parseFloat(loan.pos) || 0), 0);
         if ((name.toLowerCase().includes('poonawala') || name.toLowerCase().includes('poonawalla') || id === 'poonawala') && btCreditCardPOS > (calculatorInput.monthlyIncome * 4)) {
           return {
             bankName: name,
             eligible: false,
-            reason: `Poonawalla policy restricts Credit Card Outstanding exceeding 4x monthly income.`,
-            category: 'REJECTED'
-          };
-        }
-        if ((name.toLowerCase().includes('bajaj') || id === 'bajaj') && btCreditCardPOS > (calculatorInput.monthlyIncome * 6)) {
-          return {
-            bankName: name,
-            eligible: false,
-            reason: `Bajaj Finance restricts Credit Card Outstanding exceeding 6x monthly income.`,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Poonawalla policy restricts Credit Card Outstanding exceeding 4x monthly income (CC POS: ₹${Math.round(btCreditCardPOS).toLocaleString()} > Max: ₹${Math.round(calculatorInput.monthlyIncome * 4).toLocaleString()}).`,
             category: 'REJECTED'
           };
         }
@@ -511,7 +493,19 @@ const matchCategory = (cat1, cat2) => {
           return {
             bankName: name,
             eligible: false,
-            reason: `Chola Finance restricts Credit Card Outstanding exceeding 6x monthly income.`,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Chola Finance policy restricts Credit Card Outstanding exceeding 6x monthly income (CC POS: ₹${Math.round(btCreditCardPOS).toLocaleString()} > Max: ₹${Math.round(calculatorInput.monthlyIncome * 6).toLocaleString()}).`,
+            category: 'REJECTED'
+          };
+        }
+        if ((name.toLowerCase().includes('abfl') || id === 'abfl') && btCreditCardPOS > (calculatorInput.monthlyIncome * 6)) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `Aditya Birla Finance restricts Credit Card Outstanding exceeding 6x monthly income (CC POS: ₹${Math.round(btCreditCardPOS).toLocaleString()} > Max: ₹${Math.round(calculatorInput.monthlyIncome * 6).toLocaleString()}).`,
             category: 'REJECTED'
           };
         }
@@ -2160,100 +2154,88 @@ const matchCategory = (cat1, cat2) => {
       // Execute base calculator
       const result = calculator(bankInput);
 
-      const isIciciInst = name.toLowerCase().includes('icici') || id === 'icici';
-      if (isIciciInst && result) {
-        return {
-          bankName: result.bankName || name,
-          ...result,
+      const buildEnhancedResult = (res, specificPf = null) => {
+        const bankEndTime = performance.now();
+        const bankTime = (bankEndTime - bankStartTime).toFixed(2);
+        const resolvedLoan = Number(res.loanAmount ?? res.maxLoanAmount ?? 0);
+        const enhanced = {
+          bankName: res.bankName || name,
+          ...res,
+          loanAmount: resolvedLoan,
           category: bankCategory,
           salaryMode: calculatorInput.salaryMode,
           adminApplied: true,
-          processingFee: adminAllConfig.feesAndCharges?.processingFeePercentage || 0.8
+          btConfig: adminAllConfig.btConfig || config.btConfig,
+          processingFee: specificPf !== null 
+            ? specificPf 
+            : (adminAllConfig.feesAndCharges?.processingFeePercentage ?? res.processingFee),
         };
+
+        if (calculatorInput.isBTMode) {
+          enhanced.isBTMode = true;
+          enhanced.totalDebtCleared = calculatorInput.btTotalOutstanding;
+          enhanced.freshAmountDisbursed = Math.max(0, resolvedLoan - calculatorInput.btTotalOutstanding);
+          if (res.eligible && resolvedLoan < calculatorInput.btTotalOutstanding) {
+            enhanced.eligible = false;
+            enhanced.btNotAllowed = true;
+            enhanced.reason = `Eligible loan capacity (₹${resolvedLoan.toLocaleString()}) is less than total BT debt to clear (₹${calculatorInput.btTotalOutstanding.toLocaleString()}).`;
+          }
+        }
+
+        if (!enhanced.eligible && (calculatorInput.isBTMode || res.isBTMode || enhanced.reason?.toLowerCase().includes('not allow') || enhanced.reason?.toLowerCase().includes('fresh funding'))) {
+          enhanced.btNotAllowed = true;
+        }
+
+        if (enhanced.eligible) {
+          console.log(`   ✅ APPROVED - Loan: ₹${(resolvedLoan / 100000).toFixed(2)}L, EMI: ₹${(enhanced.monthlyEMI || 0).toLocaleString()} (${bankTime}ms)`);
+        } else {
+          console.log(`   ❌ REJECTED - Reason: ${enhanced.reason} (${bankTime}ms)`);
+        }
+
+        return enhanced;
+      };
+
+      const isIciciInst = name.toLowerCase().includes('icici') || id === 'icici';
+      if (isIciciInst && result) {
+        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 0.8);
       }
 
       const isHdfcInst = name.toLowerCase().includes('hdfc') || id === 'hdfc';
       if (isHdfcInst && result) {
-        return {
-          bankName: result.bankName || name,
-          ...result,
-          category: bankCategory,
-          salaryMode: calculatorInput.salaryMode,
-          adminApplied: true,
-          processingFee: adminAllConfig.feesAndCharges?.processingFeePercentage || 0.5
-        };
+        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 0.5);
       }
 
       const isIndusindInst = name === 'IndusInd Bank' || id === 'indusind';
       if (isIndusindInst && result) {
-        return {
-          bankName: result.bankName || name,
-          ...result,
-          category: bankCategory,
-          salaryMode: calculatorInput.salaryMode,
-          adminApplied: true,
-          processingFee: adminAllConfig.feesAndCharges?.processingFeePercentage || 1.0
-        };
+        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 1.0);
       }
 
       if (isFinnableInst && result) {
-        return {
-          bankName: result.bankName || name,
+        const finnableRes = {
           ...result,
-          category: bankCategory,
-          salaryMode: calculatorInput.salaryMode,
-          adminApplied: true,
-          processingFee: adminAllConfig.feesAndCharges?.processingFeePercentage || 2.5,
           form16Required: result.details?.isForm16Required || (result.loanAmount >= 500000),
           form16Note: (result.details?.isForm16Required || result.loanAmount >= 500000) ? 'Form 16 verification is required for loan amounts ≥ ₹5 Lakhs.' : null
         };
+        return buildEnhancedResult(finnableRes, adminAllConfig.feesAndCharges?.processingFeePercentage || 2.5);
       }
 
       const isIdfcInst = name.toLowerCase().includes('idfc') || id === 'idfc';
       if (isIdfcInst && result) {
-        return {
-          bankName: result.bankName || name,
-          ...result,
-          category: bankCategory,
-          salaryMode: calculatorInput.salaryMode,
-          adminApplied: true,
-          processingFee: adminAllConfig.feesAndCharges?.processingFeePercentage || 1.2
-        };
+        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 1.2);
       }
 
       if (isLntInst && result) {
-        return {
-          bankName: result.bankName || name,
-          ...result,
-          category: bankCategory,
-          salaryMode: calculatorInput.salaryMode,
-          adminApplied: true,
-          processingFee: adminAllConfig.feesAndCharges?.processingFeePercentage || 2.0
-        };
+        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 2.0);
       }
 
       const isPiramalInst = name.toLowerCase().includes('piramal') || id === 'piramal';
       if (isPiramalInst && result) {
-        return {
-          bankName: result.bankName || name,
-          ...result,
-          category: bankCategory,
-          salaryMode: calculatorInput.salaryMode,
-          adminApplied: true,
-          processingFee: adminAllConfig.feesAndCharges?.processingFeePercentage || 0.75
-        };
+        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 0.75);
       }
 
       if (isSmfgInst && result) {
         const pfPct = adminAllConfig.feesAndCharges?.processingFeePercentage || (result.loanAmount < 300000 ? 3.5 : 2.5);
-        return {
-          bankName: result.bankName || name,
-          ...result,
-          category: bankCategory,
-          salaryMode: calculatorInput.salaryMode,
-          adminApplied: true,
-          processingFee: pfPct
-        };
+        return buildEnhancedResult(result, pfPct);
       }
 
       // 🚀 ENFORCE AND RECALCULATE DYNAMIC ADMIN POLICY PARAMETERS (FOIR, Multiplier, Rate, Tenures)
@@ -2876,27 +2858,8 @@ const matchCategory = (cat1, cat2) => {
         }
       }
 
-      const bankEndTime = performance.now();
-      const bankTime = (bankEndTime - bankStartTime).toFixed(2);
-
       // 💎 ENHANCED RESULT WITH ADMIN TRANSPARENCY
-      const enhancedResult = {
-        bankName: result.bankName || name,
-        ...result,
-        category: bankCategory,
-        salaryMode: calculatorInput.salaryMode,
-        adminApplied: true,
-        btConfig: adminAllConfig.btConfig || config.btConfig,
-        processingFee: isFinnableInst ? (adminAllConfig.feesAndCharges?.processingFeePercentage || 2.5) : adminAllConfig.feesAndCharges?.processingFeePercentage,
-      };
-
-      if (result.eligible) {
-        console.log(`   ✅ APPROVED - Loan: ₹${(result.loanAmount / 100000).toFixed(2)}L, EMI: ₹${result.monthlyEMI.toLocaleString()} (${bankTime}ms)`);
-      } else {
-        console.log(`   ❌ REJECTED - Reason: ${result.reason} (${bankTime}ms)`);
-      }
-
-      return enhancedResult;
+      return buildEnhancedResult(result, isFinnableInst ? (adminAllConfig.feesAndCharges?.processingFeePercentage || 2.5) : adminAllConfig.feesAndCharges?.processingFeePercentage);
     } catch (error) {
       const bankEndTime = performance.now();
       const bankTime = (bankEndTime - bankStartTime).toFixed(2);

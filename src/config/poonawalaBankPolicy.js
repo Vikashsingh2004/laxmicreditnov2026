@@ -112,6 +112,12 @@ export const POONAWALA_BANK_EXCEL_POLICY = {
     goldLoanObligateCount: 1, // 1 GL OBLIGATE
     maxCibilEnquiriesIn90Days: 6,
     geoLimitKm: 80,
-    mode: '100% DIGITAL PROCESS'
+    mode: '100% DIGITAL PROCESS',
+    allowPlBt: true,
+    plBtAllowedCount: 5,
+    ccBtAllowedCount: 6,
+    allowAppLoanBt: true,
+    maxAppLoanBtCount: 3,
+    totalBtCaseCap: 8
   }
 };

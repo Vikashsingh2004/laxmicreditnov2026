@@ -45,6 +45,9 @@ export const KOTAK_BANK_EXCEL_POLICY = {
     minCibilScore: 0,
     ccObligationPercent: 5,
     allowCcBt: false,
-    ccBtAllowedCount: 0
+    ccBtAllowedCount: 0,
+    allowPlBt: true,
+    plBtAllowedCount: 999,
+    totalBtCaseCap: 999
   }
 };

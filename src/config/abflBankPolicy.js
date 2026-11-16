@@ -16,7 +16,11 @@ export const ABFL_BANK_EXCEL_POLICY = {
     ccBtAllowedCount: 5,
     maxCcBtSalaryMultiplier: 6,
     kccNotObligated: true,
-    minLoanAmount: 100000
+    minLoanAmount: 100000,
+    allowPlBt: true,
+    plBtAllowedCount: 4,
+    allowCcBt: true,
+    totalBtCaseCap: 6
   },
 
   // Table 2: FOIR Policy Matrix (NO HL vs EVER HL/LAP)

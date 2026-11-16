@@ -37,6 +37,7 @@ const INITIAL_12_BANKS = [
   { id: 'lnt', name: 'L&T Finance', color: '#004F9E', minRate: 10.99, maxLoan: 3000000, maxTenure: 72, enabled: true },
   { id: 'smfg', name: 'SMFG India Credit', color: '#002D62', minRate: 17.00, maxLoan: 3000000, maxTenure: 60, enabled: true },
   { id: 'incred', name: 'Incred Finance', color: '#F37023', minRate: 13.49, maxLoan: 1500000, maxTenure: 60, enabled: true },
+  { id: 'au-bank', name: 'AU Small Finance Bank', color: '#6F2C91', minRate: 12.99, maxLoan: 2500000, maxTenure: 60, enabled: true },
   { id: 'abfl', name: 'Aditya Birla Finance', color: '#A6192E', minRate: 11.50, maxLoan: 5000000, maxTenure: 84, enabled: true }
 ];
 
@@ -157,7 +158,11 @@ const DEFAULT_DEMOGRAPHIC_RULES = {
   minExperienceCurrent: 6,
   minCibilScore: 0, // Bypassed
   ccObligationPercent: 5,
-  ccBtAllowedCount: 3
+  allowPlBt: true,
+  plBtAllowedCount: 3,
+  allowCcBt: true,
+  ccBtAllowedCount: 3,
+  totalBtCaseCap: 6
 };
 
 const DEFAULT_UNIFIED_POLICY = {
@@ -5184,6 +5189,38 @@ const UnifiedBankPolicyManager = () => {
                 </div>
               </div>
 
+              {(activeConfigBank?.id === 'axis-bank' || (activeConfigBank?.name?.toLowerCase().includes('axis') && activeConfigBank?.name?.toLowerCase().includes('bank'))) && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(151, 18, 73, 0.12) 0%, rgba(245, 158, 11, 0.12) 100%)',
+                  border: '1.5px solid rgba(151, 18, 73, 0.35)',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f43f5e', fontWeight: 700, fontSize: '0.95rem' }}>
+                    <CheckCircle2 size={18} />
+                    <span>Axis Bank Master Policy Rules (from Excel)</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px', fontSize: '0.84rem', color: '#e2e8f0' }}>
+                    <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(244, 63, 94, 0.2)' }}>
+                      <strong style={{ color: '#f43f5e', fontSize: '0.88rem' }}>📌 Multipliers & FOIR Slabs:</strong>
+                      <div style={{ marginTop: '5px' }}>• Multipliers: <strong>24x to 36x Net Salary</strong></div>
+                      <div style={{ marginTop: '3px' }}>• FOIR: <strong>55% to 75% Max FOIR</strong> across salary bands</div>
+                      <div style={{ marginTop: '3px' }}>• CC Obligation: <strong>4% of Credit Card limit</strong></div>
+                    </div>
+                    <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                      <strong style={{ color: '#f59e0b', fontSize: '0.88rem' }}>📌 Balance Transfer & Sanction:</strong>
+                      <div style={{ marginTop: '5px', color: '#86efac' }}>• Balance Transfer: <strong>5 CC BT Allowed | 5 PL BT Allowed</strong> (Cap: 5 in case)</div>
+                      <div style={{ marginTop: '3px' }}>• Max Loan Sanction: <strong>₹50 Lakhs</strong> (Min: ₹50,000)</div>
+                      <div style={{ marginTop: '3px' }}>• Tenure: <strong>Up to 84 Months (7 Years)</strong></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {activeConfigBank?.id === 'indusind' && (
                 <div style={{
                   background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(14, 165, 233, 0.1) 100%)',
@@ -5213,7 +5250,7 @@ const UnifiedBankPolicyManager = () => {
                       <div style={{ marginTop: '5px' }}>• Multiplier &lt; ₹75K: <strong>20x</strong> | ₹75K–₹1.25L: <strong>25x</strong> | ≥ ₹1.25L: <strong>30x</strong></div>
                       <div style={{ marginTop: '3px' }}>• Category C: <strong>21x Multiplier</strong> | ₹35K–₹80K: <strong>60% FOIR</strong> (Cap: ₹15L)</div>
                       <div style={{ marginTop: '3px', color: '#fca5a5' }}>• <strong>CIBIL -1 Policy</strong>: Max tenure strictly capped to <strong>48 Months</strong></div>
-                      <div style={{ marginTop: '3px', color: '#fdba74' }}>• CC Obligation: <strong>5% of limit</strong> (CC BT Not Allowed)</div>
+                      <div style={{ marginTop: '3px', color: '#fdba74' }}>• Balance Transfer: <strong>5 PL BT Allowed | CC BT Not Allowed</strong> (Cap: 5 in case)</div>
                     </div>
                   </div>
                 </div>
@@ -5241,6 +5278,7 @@ const UnifiedBankPolicyManager = () => {
                       <div style={{ marginTop: '3px' }}>• Category B: <strong>65% Max FOIR</strong> | <strong>25x Multiplier</strong></div>
                       <div style={{ marginTop: '3px' }}>• Category C & D: <strong>50% Max FOIR</strong> | <strong>20x Multiplier</strong></div>
                       <div style={{ marginTop: '3px', color: '#86efac' }}>• CC Obligation: <strong>5% of the usage</strong></div>
+                      <div style={{ marginTop: '3px', color: '#fdba74' }}>• Balance Transfer: <strong>3 PL BT Allowed | CC BT Not Allowed</strong> (Cap: 3 in case)</div>
                     </div>
                     <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                       <strong style={{ color: '#f59e0b', fontSize: '0.88rem' }}>📌 Loan & Tenure Capping:</strong>
@@ -5281,6 +5319,7 @@ const UnifiedBankPolicyManager = () => {
                       <div style={{ marginTop: '5px', color: '#fde047' }}>• <strong>CC Zero-Obligation Rule:</strong> If active CC POS is ≤ 3x Net Salary, <strong>OBLIGATION IS ₹0</strong>! Otherwise 3%.</div>
                       <div style={{ marginTop: '3px' }}>• Maximum Sanction: <strong>₹25 Lakhs flat cap</strong></div>
                       <div style={{ marginTop: '3px' }}>• Tenure: Strictly <strong>60 Months (5 Years)</strong></div>
+                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• Balance Transfer: <strong>3 PL BT Allowed | CC BT Not Allowed</strong> (Cap: 3 in case)</div>
                     </div>
                   </div>
                 </div>
@@ -5306,7 +5345,7 @@ const UnifiedBankPolicyManager = () => {
                       <strong style={{ color: '#f87171', fontSize: '0.88rem' }}>📌 FOIR & HL Bonus:</strong>
                       <div style={{ marginTop: '5px' }}>• Standard FOIR: <strong>70% Max FOIR</strong> across categories</div>
                       <div style={{ marginTop: '3px', color: '#86efac' }}>• <strong>Live HL &gt;= ₹10L:</strong> <strong>+5% Bonus FOIR (Up to 75%)</strong></div>
-                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• Balance Transfer: <strong>Credit Card BT NOT ALLOWED</strong></div>
+                      <div style={{ marginTop: '3px', color: '#fdba74' }}>• Balance Transfer: <strong>Unlimited PL BT Allowed | CC BT Not Allowed</strong></div>
                     </div>
                     <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
                       <strong style={{ color: '#38bdf8', fontSize: '0.88rem' }}>📌 Net Salary Multipliers:</strong>
@@ -5343,7 +5382,7 @@ const UnifiedBankPolicyManager = () => {
                     <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                       <strong style={{ color: '#f59e0b', fontSize: '0.88rem' }}>📌 Sanction & BT Rules:</strong>
                       <div style={{ marginTop: '5px' }}>• Special ₹50L Slab: <strong>10.99% flat ROI</strong></div>
-                      <div style={{ marginTop: '3px' }}>• Balance Transfer: <strong>Up to 5 Credit Cards allowed</strong></div>
+                      <div style={{ marginTop: '3px', color: '#86efac' }}>• Balance Transfer: <strong>6 CC BT Allowed | 6 PL BT Allowed</strong> (Max 6 in case)</div>
                       <div style={{ marginTop: '3px' }}>• Tenure: <strong>Up to 84 Months (8 Years)</strong></div>
                     </div>
                   </div>
@@ -5407,7 +5446,7 @@ const UnifiedBankPolicyManager = () => {
                     <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                       <strong style={{ color: '#f59e0b', fontSize: '0.88rem' }}>📌 FOIR & Balance Transfer:</strong>
                       <div style={{ marginTop: '5px' }}>• Permitted FOIR: <strong>50% to 65%</strong> based on income</div>
-                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• Balance Transfer: <strong>ONLY PL BT ALLOWED</strong> (CC BT Not Allowed)</div>
+                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• Balance Transfer: <strong>3 PL BT Allowed | CC BT Not Allowed</strong> (Cap: 3 in case)</div>
                       <div style={{ marginTop: '3px' }}>• Tenure: Strictly <strong>60 Months (5 Years)</strong></div>
                     </div>
                   </div>
@@ -5434,7 +5473,7 @@ const UnifiedBankPolicyManager = () => {
                       <strong style={{ color: '#fca5a5', fontSize: '0.88rem' }}>📌 Specialized Loan Obligations:</strong>
                       <div style={{ marginTop: '5px' }}>• Gold Loan: <strong>1% obligation</strong> (standard is full EMI)</div>
                       <div style={{ marginTop: '3px', color: '#86efac' }}>• KCC Loan ≤ ₹15 Lakhs: <strong>0% Obligation (Zero deduction)</strong></div>
-                      <div style={{ marginTop: '3px' }}>• CC BT / App BT ROI: <strong>18.00%</strong></div>
+                      <div style={{ marginTop: '3px', color: '#fde047' }}>• Balance Transfer: <strong>7 CC BT Allowed | 7 PL BT Allowed</strong> (Cap: 7 | CC BT ROI: 18.00%)</div>
                     </div>
                     <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
                       <strong style={{ color: '#38bdf8', fontSize: '0.88rem' }}>📌 Tenure by Category:</strong>
@@ -5469,7 +5508,7 @@ const UnifiedBankPolicyManager = () => {
                     </div>
                     <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
                       <strong style={{ color: '#38bdf8', fontSize: '0.88rem' }}>📌 Credit Card BT & Capping:</strong>
-                      <div style={{ marginTop: '5px' }}>• Max Cards Allowed: <strong>Up to 6 Credit Cards</strong> (`6 CCBT ALLOW`)</div>
+                      <div style={{ marginTop: '5px', color: '#86efac' }}>• Balance Transfer: <strong>6 CC BT Allowed | 4 PL BT Allowed</strong> (Cap: 6 in case)</div>
                       <div style={{ marginTop: '3px' }}>• Outstanding POS Cap: <strong>≤ 6x Net Monthly Salary</strong> (`6 TIME NOT ALLOW FOR BT`)</div>
                       <div style={{ marginTop: '3px' }}>• CC Obligation: <strong>5% of Outstanding</strong> (`5% OBLIGATION`)</div>
                     </div>
@@ -5505,7 +5544,7 @@ const UnifiedBankPolicyManager = () => {
                       <div style={{ marginTop: '5px', color: '#86efac' }}>• <strong>Special 10.99% ROI:</strong> Super A / A with Owned House, ₹1.75L+ Sal & 775+ CIBIL</div>
                       <div style={{ marginTop: '3px' }}>• <strong>CIBIL & Work Exp:</strong> <strong>720+ CIBIL</strong> | Min <strong>6 Months</strong> Salary Credit</div>
                       <div style={{ marginTop: '3px' }}>• <strong>Loan Capping:</strong> ₹1L to ₹30L (<strong>Category D Rented Capped at ₹20L</strong>)</div>
-                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• <strong>BT Restriction:</strong> Credit Card BT <strong>STRICTLY NOT ALLOWED</strong> (5% CC Obligation)</div>
+                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• <strong>BT Restriction:</strong> <strong>6 PL BT Allowed | CC BT Strictly Not Allowed</strong> (Cap: 6 in case)</div>
                     </div>
                   </div>
                 </div>
@@ -5525,6 +5564,9 @@ const UnifiedBankPolicyManager = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontWeight: 700, fontSize: '0.98rem' }}>
                     <CheckCircle2 size={18} />
                     <span>Piramal Finance CIBIL Score & Ventile Band Policy (Editable Master Tables)</span>
+                  </div>
+                  <div style={{ fontSize: '0.84rem', color: '#86efac', background: 'rgba(15, 23, 42, 0.65)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.3)' }}>
+                    📌 <strong>Balance Transfer Policy:</strong> <strong>2 CC BT Allowed | 3 PL BT Allowed</strong> (Total 3 BT in a case; Standalone CC BT Not Allowed — at least 1 PL BT required).
                   </div>
 
                   {/* Table 1: FOIR Matrix by CIBIL Score Range */}
@@ -5690,7 +5732,10 @@ const UnifiedBankPolicyManager = () => {
               )}
 
               {(activeConfigBank?.id === 'idfc' || activeConfigBank?.name?.toLowerCase().includes('idfc')) && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.84rem', color: '#86efac', background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.3)' }}>
+                    📌 <strong>Balance Transfer Policy:</strong> <strong>3 CC BT Allowed | 3 PL BT Allowed</strong> (Total 6 combined debts allowed in a single case).
+                  </div>
                   {/* Table 1: FOIR Matrix */}
                   <div style={{ background: 'rgba(15, 23, 42, 0.75)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(139, 21, 56, 0.4)' }}>
                     <div style={{ fontWeight: 700, color: '#f43f5e', fontSize: '0.95rem', marginBottom: '10px' }}>
@@ -5839,6 +5884,9 @@ const UnifiedBankPolicyManager = () => {
                   </div>
                   <div style={{ fontSize: '0.84rem', color: '#93c5fd' }}>
                     📌 Policy Rule: FOIR & Multipliers for SMFG India Credit depend <strong>STRICTLY ON SALARY SLABS</strong> (Category Independent).
+                  </div>
+                  <div style={{ fontSize: '0.84rem', color: '#86efac', background: 'rgba(15, 23, 42, 0.65)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.3)' }}>
+                    📌 <strong>Balance Transfer Policy:</strong> <strong>2 CC BT Allowed + AL BT + Unlimited PL BT</strong>.
                   </div>
 
                   <div className="table-responsive">
@@ -6235,6 +6283,10 @@ const UnifiedBankPolicyManager = () => {
                     </span>
                   </div>
 
+                  <div style={{ fontSize: '0.84rem', color: '#86efac', background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.3)' }}>
+                    📌 <strong>Balance Transfer Policy:</strong> <strong>6 CC BT Allowed | 5 PL BT Allowed | 3 App Loan BT</strong> (Total 8 combined debts allowed in a case | CC POS ≤ 4x monthly salary).
+                  </div>
+
                   {/* FOIR Matrix Table from Excel */}
                   <div style={{ background: 'rgba(15, 23, 42, 0.75)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
                     <div style={{ fontWeight: 700, color: '#38bdf8', fontSize: '0.9rem', marginBottom: '8px' }}>
@@ -6541,6 +6593,10 @@ const UnifiedBankPolicyManager = () => {
                     </span>
                   </div>
 
+                  <div style={{ fontSize: '0.84rem', color: '#86efac', background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.3)' }}>
+                    📌 <strong>Balance Transfer Policy:</strong> <strong>5 CC BT Allowed | 4 PL BT Allowed</strong> (Total 6 in case | CC POS ≤ 6x monthly salary | Paperless BT: +1.00% ROI).
+                  </div>
+
                   {/* Table 2: FOIR Policy Matrix (NO HL vs EVER HL/LAP) */}
                   <div style={{ background: 'rgba(15, 23, 42, 0.75)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
                     <div style={{ fontWeight: 700, color: '#38bdf8', fontSize: '0.92rem', marginBottom: '8px' }}>
@@ -6628,6 +6684,7 @@ const UnifiedBankPolicyManager = () => {
                       <div style={{ marginTop: '3px', color: '#4ade80' }}>• <strong>Live Home Loan Running</strong>: FOIR extends to <strong>70%</strong> (`HL RUNING - 70%`)</div>
                       <div style={{ marginTop: '3px' }}>• Open Market FOIR: <strong>45% to 55%</strong></div>
                       <div style={{ marginTop: '3px', color: '#38bdf8' }}>• Credit Card Obligation: <strong>5% of limit</strong> (`5% CC OBLIGATE`)</div>
+                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• Balance Transfer: <strong>3 PL BT Allowed | CC BT Not Allowed</strong> (Cap: 3 in case)</div>
                     </div>
                     <div style={{ background: 'rgba(15, 23, 42, 0.65)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.25)' }}>
                       <strong style={{ color: '#fdba74', fontSize: '0.88rem' }}>📌 Minimum Salary Thresholds:</strong>
@@ -6811,7 +6868,8 @@ const UnifiedBankPolicyManager = () => {
                     </div>
                     <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
                       • <strong>FOIR Only Institution:</strong> Multiplier column is removed as loan eligibility is calculated purely by FOIR.<br />
-                      • <strong>Account Aggregator Bonus:</strong> Additional +5% FOIR basis Account Aggregator validation (e.g., 40% + 5% = 45%).
+                      • <strong>Account Aggregator Bonus:</strong> Additional +5% FOIR basis Account Aggregator validation (e.g., 40% + 5% = 45%).<br />
+                      • <strong>Balance Transfer Policy:</strong> Strictly <strong>ONLY FRESH FUNDING</strong> (Balance Transfer is Not Allowed as per policy).
                     </div>
                   </div>
 
@@ -7606,93 +7664,6 @@ const UnifiedBankPolicyManager = () => {
                             {row.category || row.tier || 'Standard'}
                           </span>
                         </td>
-                        {(activeConfigBank?.id === 'lnt' || activeConfigBank?.name?.toLowerCase().includes('l&t') || activeConfigBank?.name?.toLowerCase().includes('lnt')) ? (
-                          <>
-                            <td>
-                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <div className="table-input-cell" style={{ width: '85px' }}>
-                                  <input 
-                                    type="number"
-                                    value={row.slab1Foir ?? (row.category === 'C' || row.category === 'D' ? 50 : 55)}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      const updated = [...policyData.foirMultiplier];
-                                      updated[idx].slab1Foir = val;
-                                      setPolicyData({ ...policyData, foirMultiplier: updated });
-                                    }}
-                                  />
-                                  <span>%</span>
-                                </div>
-                                <div className="table-input-cell" style={{ width: '75px' }}>
-                                  <input 
-                                    type="number"
-                                    value={row.mult1 ?? (row.category === 'D' ? 14 : (row.category === 'C' ? 16 : 18))}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      const updated = [...policyData.foirMultiplier];
-                                      updated[idx].mult1 = val;
-                                      setPolicyData({ ...policyData, foirMultiplier: updated });
-                                    }}
-                                  />
-                                  <span>x</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <div className="table-input-cell" style={{ width: '85px' }}>
-                                  <input 
-                                    type="number"
-                                    value={row.slab2Foir ?? (row.category === 'D' ? 55 : (row.category === 'C' ? 60 : 70))}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      const updated = [...policyData.foirMultiplier];
-                                      updated[idx].slab2Foir = val;
-                                      setPolicyData({ ...policyData, foirMultiplier: updated });
-                                    }}
-                                  />
-                                  <span>%</span>
-                                </div>
-                                <div className="table-input-cell" style={{ width: '75px' }}>
-                                  <input 
-                                    type="number"
-                                    value={row.mult2 ?? (row.category === 'D' ? 15 : (row.category === 'C' ? 18 : 20))}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      const updated = [...policyData.foirMultiplier];
-                                      updated[idx].mult2 = val;
-                                      setPolicyData({ ...policyData, foirMultiplier: updated });
-                                    }}
-                                  />
-                                  <span>x</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <div className="table-input-cell" style={{ width: '85px' }}>
-                                  <input 
-                                    type="number"
-                                    value={row.slab3Foir ?? (row.category === 'D' ? 65 : (row.category === 'C' ? 70 : 75))}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      const updated = [...policyData.foirMultiplier];
-                                      updated[idx].slab3Foir = val;
-                                      setPolicyData({ ...policyData, foirMultiplier: updated });
-                                    }}
-                                  />
-                                  <span>%</span>
-                                </div>
-                                <div className="table-input-cell" style={{ width: '75px' }}>
-                                  <input 
-                                    type="number"
-                                    value={row.mult3 ?? (row.category === 'D' ? 16 : (row.category === 'C' ? 20 : 24))}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      const updated = [...policyData.foirMultiplier];
-                                      updated[idx].mult3 = val;
-                                      setPolicyData({ ...policyData, foirMultiplier: updated });
-                                    }}
                                   />
                                   <span>x</span>
                                 </div>
@@ -8749,6 +8720,7 @@ const UnifiedBankPolicyManager = () => {
                       <div style={{ marginTop: '3px' }}>• <strong>Open Market</strong>: <strong>₹75,000</strong> (`OPEN MARKET - 75K`)</div>
                       <div style={{ marginTop: '3px', color: '#fca5a5' }}>• <strong>NRI Profile</strong>: <strong>₹2,00,000</strong> (`NRI CASE - 2LAC`)</div>
                       <div style={{ marginTop: '3px', color: '#38bdf8' }}>• Credit Card Obligation: <strong>5% of limit</strong> (`5% CC OBLIGATE`)</div>
+                      <div style={{ marginTop: '3px', color: '#fca5a5' }}>• Balance Transfer: <strong>3 PL BT Allowed | CC BT Not Allowed</strong> (Cap: 3 in case)</div>
                     </div>
                   </div>
                 </div>
@@ -9576,39 +9548,197 @@ const UnifiedBankPolicyManager = () => {
                       <td>{(activeConfigBank?.id === 'bandhan' || activeConfigBank?.name?.toLowerCase().includes('bandhan')) ? '3%' : '5%'}</td>
                       <td>{(activeConfigBank?.id === 'bandhan' || activeConfigBank?.name?.toLowerCase().includes('bandhan')) ? 'Excel Policy: CC OBLIGATION: 3%' : 'Standard monthly obligation percentage applied against credit card outstanding balance'}</td>
                     </tr>
+                    {/* 1. Personal Loan BT Count */}
                     <tr>
-                      <td><strong>Max Credit Card BT Allowed</strong></td>
+                      <td><strong>Max Personal Loan (PL) BT Allowed</strong></td>
                       <td>
                         <div className="table-input-cell">
                           <input 
                             type="number"
-                            value={policyData?.demographics?.ccBtAllowedCount ?? ((activeConfigBank?.id === 'kotak' || activeConfigBank?.id === 'bandhan' || activeConfigBank?.id === 'au-bank' || activeConfigBank?.id === 'au' || activeConfigBank?.name?.toLowerCase().includes('kotak') || activeConfigBank?.name?.toLowerCase().includes('bandhan') || activeConfigBank?.name?.toLowerCase().includes('au ')) ? 0 : ((activeConfigBank?.id === 'smfg' || activeConfigBank?.name?.toLowerCase().includes('smfg')) ? 2 : ((activeConfigBank?.id === 'cholamandalam' || activeConfigBank?.id === 'chola' || activeConfigBank?.name?.toLowerCase().includes('chola')) ? 6 : 3)))}
+                            value={policyData?.demographics?.plBtAllowedCount ?? (() => {
+                              const bId = activeConfigBank?.id || '';
+                              if (bId === 'kotak' || bId === 'smfg') return 999;
+                              if (bId === 'axis-fin' || bId === 'axis') return 7;
+                              if (bId === 'tata' || bId === 'lnt') return 6;
+                              if (bId === 'axis-bank' || bId === 'indusind' || bId === 'poonawala') return 5;
+                              if (bId === 'cholamandalam' || bId === 'chola' || bId === 'abfl') return 4;
+                              if (bId === 'incred') return 0;
+                              return 3;
+                            })()}
                             onChange={(e) => {
                               const val = Number(e.target.value);
                               setPolicyData(prev => ({
                                 ...prev,
-                                demographics: { ...(prev?.demographics || DEFAULT_DEMOGRAPHIC_RULES), ccBtAllowedCount: val }
+                                demographics: { 
+                                  ...(prev?.demographics || DEFAULT_DEMOGRAPHIC_RULES), 
+                                  plBtAllowedCount: val,
+                                  allowPlBt: val > 0 
+                                }
+                              }));
+                            }}
+                          />
+                          <span>Loans</span>
+                        </div>
+                      </td>
+                      <td>
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'kotak' || bId === 'smfg') return 'Unlimited';
+                          if (bId === 'axis-fin' || bId === 'axis') return '7 Loans';
+                          if (bId === 'tata' || bId === 'lnt') return '6 Loans';
+                          if (bId === 'axis-bank' || bId === 'indusind' || bId === 'poonawala') return '5 Loans';
+                          if (bId === 'cholamandalam' || bId === 'chola' || bId === 'abfl') return '4 Loans';
+                          if (bId === 'incred') return '0 (Not Allowed)';
+                          return '3 Loans';
+                        })()}
+                      </td>
+                      <td>
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'incred') return 'Excel Policy: ONLY FRESH FUNDING (BT Not Allowed)';
+                          if (bId === 'kotak') return 'Excel Policy: UNLIMITED PL BT';
+                          if (bId === 'smfg') return 'Excel Policy: UNLIMITED PL BT (+ AL BT)';
+                          if (bId === 'axis-fin' || bId === 'axis') return 'Excel Policy: 7 PL BT ALLOW';
+                          if (bId === 'lnt') return 'Excel Policy: 6 PL BT ALLOW';
+                          if (bId === 'tata') return 'Excel Policy: PL BT 6 ALLOW';
+                          if (bId === 'axis-bank') return 'Excel Policy: PL BT 5 ALLOW';
+                          if (bId === 'indusind') return 'Excel Policy: 5 PL BT ALLOW';
+                          if (bId === 'poonawala') return 'Excel Policy: PL BT 5 ALLOW (+ 3 APP LOAN BT ALLOW)';
+                          if (bId === 'cholamandalam' || bId === 'chola') return 'Excel Policy: 4 PL BT ALLOW';
+                          if (bId === 'abfl') return 'Excel Policy: 4 PL BT ALLOW';
+                          if (bId === 'piramal') return 'Excel Policy: 3 PL BT ALLOW';
+                          return 'Excel Policy: 3 PL BT ALLOW';
+                        })()}
+                      </td>
+                    </tr>
+
+                    {/* 2. Credit Card BT Count */}
+                    <tr>
+                      <td><strong>Max Credit Card (CC) BT Allowed</strong></td>
+                      <td>
+                        <div className="table-input-cell">
+                          <input 
+                            type="number"
+                            value={policyData?.demographics?.ccBtAllowedCount ?? (() => {
+                              const bId = activeConfigBank?.id || '';
+                              if (bId === 'axis-fin' || bId === 'axis') return 7;
+                              if (bId === 'tata' || bId === 'cholamandalam' || bId === 'chola' || bId === 'poonawala') return 6;
+                              if (bId === 'axis-bank' || bId === 'abfl') return 5;
+                              if (bId === 'idfc') return 3;
+                              if (bId === 'piramal' || bId === 'smfg') return 2;
+                              return 0;
+                            })()}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setPolicyData(prev => ({
+                                ...prev,
+                                demographics: { 
+                                  ...(prev?.demographics || DEFAULT_DEMOGRAPHIC_RULES), 
+                                  ccBtAllowedCount: val,
+                                  allowCcBt: val > 0 
+                                }
                               }));
                             }}
                           />
                           <span>Cards</span>
                         </div>
                       </td>
-                      <td>{(activeConfigBank?.id === 'au-bank' || activeConfigBank?.id === 'au' || activeConfigBank?.name?.toLowerCase().includes('au ')) ? '0 (Not Allowed)' : ((activeConfigBank?.id === 'kotak' || activeConfigBank?.id === 'bandhan' || activeConfigBank?.name?.toLowerCase().includes('kotak') || activeConfigBank?.name?.toLowerCase().includes('bandhan')) ? '0 (Not Allowed)' : ((activeConfigBank?.id === 'bajaj' || activeConfigBank?.name?.toLowerCase().includes('bajaj')) ? 'POS <= 6x Salary' : ((activeConfigBank?.id === 'smfg' || activeConfigBank?.name?.toLowerCase().includes('smfg')) ? '2 Cards' : ((activeConfigBank?.id === 'cholamandalam' || activeConfigBank?.id === 'chola' || activeConfigBank?.name?.toLowerCase().includes('chola')) ? '6 Cards' : '3 to 5 Cards'))))}</td>
                       <td>
-                        {(activeConfigBank?.id === 'au-bank' || activeConfigBank?.id === 'au' || activeConfigBank?.name?.toLowerCase().includes('au '))
-                          ? 'Excel Policy: ONLY PL BT (Credit Card Balance Transfer is strictly prohibited)'
-                          : (activeConfigBank?.id === 'kotak' || activeConfigBank?.name?.toLowerCase().includes('kotak'))
-                            ? 'Excel Policy: CC BT NOT ALLOW (Credit Card Balance Transfer is strictly prohibited)'
-                            : (activeConfigBank?.id === 'bandhan' || activeConfigBank?.name?.toLowerCase().includes('bandhan'))
-                              ? 'Excel Policy: Credit Card Balance Transfer is not permitted'
-                              : (activeConfigBank?.id === 'bajaj' || activeConfigBank?.name?.toLowerCase().includes('bajaj'))
-                                ? 'Excel Policy: MORE THEN 6 TIME NOT ALLOW (CC POS > 6x monthly salary not allowed, 5% obligation)'
-                                : (activeConfigBank?.id === 'smfg' || activeConfigBank?.name?.toLowerCase().includes('smfg'))
-                                  ? 'Excel Policy: MAX CC BT: 2 CC BT'
-                                  : (activeConfigBank?.id === 'cholamandalam' || activeConfigBank?.id === 'chola' || activeConfigBank?.name?.toLowerCase().includes('chola'))
-                                    ? 'Excel Policy: 6 CCBT ALLOW (Up to 6 credit cards allowed for Balance Transfer, POS capped to 6x salary)'
-                                    : 'Maximum number of credit cards permitted for Balance Transfer'}
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'axis-fin' || bId === 'axis') return '7 Cards';
+                          if (bId === 'tata' || bId === 'cholamandalam' || bId === 'chola' || bId === 'poonawala') return '6 Cards';
+                          if (bId === 'axis-bank' || bId === 'abfl') return '5 Cards';
+                          if (bId === 'idfc') return '3 Cards';
+                          if (bId === 'piramal' || bId === 'smfg') return '2 Cards';
+                          return '0 (Not Allowed)';
+                        })()}
+                      </td>
+                      <td>
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'incred') return 'Excel Policy: ONLY FRESH FUNDING (CC BT Not Allowed)';
+                          if (bId === 'indusind') return 'Excel Policy: CC BT NOT ALLOW';
+                          if (bId === 'hdfc') return 'Excel Policy: CC BT NOT ALLOW';
+                          if (bId === 'icici') return 'Excel Policy: CC BT NOT ALLOW';
+                          if (bId === 'kotak') return 'Excel Policy: CC BT NOT ALLOW';
+                          if (bId === 'bandhan') return 'Excel Policy: CC BT NOT ALLOW';
+                          if (bId === 'lnt') return 'Excel Policy: CC BT NOT ALLOW';
+                          if (bId === 'au-bank' || bId === 'au') return 'Excel Policy: CC BT NOT ALLOW (ONLY PL BT ALLOWED)';
+                          if (bId === 'axis-fin' || bId === 'axis') return 'Excel Policy: 7 CC BT Allow (ROI: 18.00%)';
+                          if (bId === 'cholamandalam' || bId === 'chola') return 'Excel Policy: 6 CC BT Allow (POS <= 6x salary)';
+                          if (bId === 'poonawala') return 'Excel Policy: 6 CC BT Allow (POS <= 4x salary)';
+                          if (bId === 'tata') return 'Excel Policy: 6 CC BT Allow';
+                          if (bId === 'axis-bank') return 'Excel Policy: 5 CC BT Allow';
+                          if (bId === 'abfl') return 'Excel Policy: 5 CC BT ALLOW (POS <= 6x salary)';
+                          if (bId === 'idfc') return 'Excel Policy: 3 CC BT Allow';
+                          if (bId === 'piramal') return 'Excel Policy: 2 CC BT ALLOW (With 1+ PL BT)';
+                          if (bId === 'smfg') return 'Excel Policy: 2 CC BT (+ AL BT)';
+                          return 'Excel Policy: Maximum credit cards permitted for Balance Transfer';
+                        })()}
+                      </td>
+                    </tr>
+
+                    {/* 3. Total Combined BT Case Cap */}
+                    <tr>
+                      <td><strong>Total Combined BT Limit (Case Cap)</strong></td>
+                      <td>
+                        <div className="table-input-cell">
+                          <input 
+                            type="number"
+                            value={policyData?.demographics?.totalBtCaseCap ?? (() => {
+                              const bId = activeConfigBank?.id || '';
+                              if (bId === 'kotak' || bId === 'smfg') return 999;
+                              if (bId === 'poonawala') return 8;
+                              if (bId === 'axis-fin' || bId === 'axis') return 7;
+                              if (bId === 'tata' || bId === 'cholamandalam' || bId === 'chola' || bId === 'idfc' || bId === 'abfl' || bId === 'lnt') return 6;
+                              if (bId === 'axis-bank' || bId === 'indusind') return 5;
+                              if (bId === 'incred') return 0;
+                              return 3;
+                            })()}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setPolicyData(prev => ({
+                                ...prev,
+                                demographics: { 
+                                  ...(prev?.demographics || DEFAULT_DEMOGRAPHIC_RULES), 
+                                  totalBtCaseCap: val 
+                                }
+                              }));
+                            }}
+                          />
+                          <span>Debts</span>
+                        </div>
+                      </td>
+                      <td>
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'kotak' || bId === 'smfg') return 'Unlimited';
+                          if (bId === 'poonawala') return '8 Debts';
+                          if (bId === 'axis-fin' || bId === 'axis') return '7 Debts';
+                          if (bId === 'tata' || bId === 'cholamandalam' || bId === 'chola' || bId === 'idfc' || bId === 'abfl' || bId === 'lnt') return '6 Debts';
+                          if (bId === 'axis-bank' || bId === 'indusind') return '5 Debts';
+                          if (bId === 'incred') return '0 (Fresh Only)';
+                          return '3 Debts';
+                        })()}
+                      </td>
+                      <td>
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'incred') return 'Excel Policy: ONLY FRESH FUNDING';
+                          if (bId === 'poonawala') return 'Excel Policy: 8 BT ALLOW IN CASE (Comb: 3 App, 6 CC, 5 PL)';
+                          if (bId === 'axis-fin' || bId === 'axis') return 'Excel Policy: 7 BT ALLOW IN CASE';
+                          if (bId === 'tata') return 'Excel Policy: 6 BT ALLOW IN CASE';
+                          if (bId === 'cholamandalam' || bId === 'chola') return 'Excel Policy: 6 BT ALLOW IN CASE';
+                          if (bId === 'idfc') return 'Excel Policy: 3 CC BT + 3 PL BT ALLOW IN CASE (Max 6)';
+                          if (bId === 'abfl') return 'Excel Policy: 6 BT ALLOW IN CASE';
+                          if (bId === 'lnt') return 'Excel Policy: 6 PL BT ALLOW';
+                          if (bId === 'axis-bank') return 'Excel Policy: DEPEND ON CASE (Cap: 5)';
+                          if (bId === 'indusind') return 'Excel Policy: 5 PL BT ALLOW';
+                          if (bId === 'piramal') return 'Excel Policy: 3 BT ALLOW IN A CASE';
+                          if (bId === 'hdfc' || bId === 'icici' || bId === 'bandhan' || bId === 'au-bank' || bId === 'au') return 'Excel Policy: 3 PL BT ALLOW IN CASE';
+                          return 'Maximum combined liabilities allowed to balance transfer in a single case';
+                        })()}
                       </td>
                     </tr>
                     {(activeConfigBank?.id === 'cholamandalam' || activeConfigBank?.id === 'chola' || activeConfigBank?.name?.toLowerCase().includes('chola')) && (

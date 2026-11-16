@@ -297,7 +297,8 @@ export const calculateAuEligibility = (inputData = {}) => {
       bankName: auConfig.name,
       bank: auConfig.name,
       reason: 'AU Small Finance Bank allows ONLY Personal Loan Balance Transfer. Credit Card BT is strictly prohibited.',
-      isBTMode: true
+      isBTMode: true,
+      btNotAllowed: true
     };
   }
 

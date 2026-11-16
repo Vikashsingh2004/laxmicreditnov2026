@@ -38,6 +38,10 @@ export const AXIS_BANK_EXCEL_POLICY = {
     minExperienceCurrent: 6,
     minCibilScore: 0,
     ccObligationPercent: 4,
-    ccBtAllowedCount: 5
+    ccBtAllowedCount: 5,
+    allowPlBt: true,
+    plBtAllowedCount: 5,
+    allowCcBt: true,
+    totalBtCaseCap: 5
   }
 };

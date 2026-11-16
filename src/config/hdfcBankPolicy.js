@@ -43,6 +43,9 @@ export const HDFC_BANK_EXCEL_POLICY = {
     minCibilScore: 0,
     ccObligationPercent: 5,
     ccBtAllowedCount: 0,
-    allowCcBt: false
+    allowCcBt: false,
+    allowPlBt: true,
+    plBtAllowedCount: 3,
+    totalBtCaseCap: 3
   }
 };

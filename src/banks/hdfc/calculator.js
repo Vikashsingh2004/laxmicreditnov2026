@@ -169,6 +169,18 @@ export const calculateHdfcEligibility = (userData) => {
 
   // 1. Balance Transfer Restrictions
   const isBT = isBTMode && loansForBT && loansForBT.length > 0;
+  if (isBT && loansForBT.some(l => {
+    const t = String(l.type || l.loanType || '').toLowerCase();
+    return t.includes('card') || t.includes('cc');
+  })) {
+    return {
+      eligible: false,
+      bankName: 'HDFC Bank',
+      reason: 'Credit Card Balance Transfer is Not Allowed for HDFC Bank (Only Personal Loan BT Allowed as per policy).',
+      isBTMode: true,
+      btNotAllowed: true
+    };
+  }
   let adjustedIncome = monthlyIncomeForCalc;
   let nonBTLoansEMI = 0;
 

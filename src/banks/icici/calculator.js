@@ -141,6 +141,18 @@ export const calculateIciciEligibility = (userData) => {
 
   // 1. Balance Transfer Restrictions
   const isBT = isBTMode && loansForBT && loansForBT.length > 0;
+  if (isBT && loansForBT.some(l => {
+    const t = String(l.type || l.loanType || '').toLowerCase();
+    return t.includes('card') || t.includes('cc');
+  })) {
+    return {
+      eligible: false,
+      bankName: 'ICICI Bank',
+      reason: 'Credit Card Balance Transfer is Not Allowed for ICICI Bank (Only Personal Loan BT Allowed as per policy).',
+      isBTMode: true,
+      btNotAllowed: true
+    };
+  }
   let adjustedIncome = monthlyIncomeForCalc;
   let nonBTLoansEMI = 0;
 

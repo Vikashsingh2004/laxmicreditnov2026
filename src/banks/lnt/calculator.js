@@ -138,7 +138,10 @@ export const calculateLntEligibility = (userData, adminBankConfig) => {
     if (ccBtLoans.length > 0) {
       return {
         eligible: false,
-        reason: 'Credit Card Balance Transfer is not permitted for L&T Finance (Policy: CC BT NOT ALLOWED).'
+        bankName: 'L&T Finance',
+        reason: 'Credit Card Balance Transfer is not permitted for L&T Finance (Policy: CC BT NOT ALLOWED).',
+        isBTMode: true,
+        btNotAllowed: true
       };
     }
   }

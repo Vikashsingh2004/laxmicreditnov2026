@@ -841,8 +841,18 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                     <h4>{bank.bankName}</h4>
 
                     {!bank.eligible && (
-                      <div className="status-badge rejected" style={{ position: 'absolute', right: '16px' }}>
-                        ✕ Ineligible
+                      <div 
+                        className="status-badge rejected" 
+                        style={{ 
+                          position: 'absolute', 
+                          right: '16px',
+                          background: (bank.btNotAllowed || bank.isBTMode || bank.reason?.toLowerCase().includes('not allow') || bank.reason?.toLowerCase().includes('fresh funding')) ? '#FEE2E2' : undefined,
+                          color: (bank.btNotAllowed || bank.isBTMode || bank.reason?.toLowerCase().includes('not allow') || bank.reason?.toLowerCase().includes('fresh funding')) ? '#B91C1C' : undefined,
+                          border: '1px solid #FCA5A5',
+                          fontWeight: 700
+                        }}
+                      >
+                        {(bank.btNotAllowed || bank.isBTMode || bank.reason?.toLowerCase().includes('not allow') || bank.reason?.toLowerCase().includes('fresh funding')) ? '✕ Not Allowed' : '✕ Ineligible'}
                       </div>
                     )}
                   </div>
@@ -987,9 +997,27 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                       </>
                     ) : (
                       <div className="rejected-body">
-                        <div className="rejection-reason">
-                          <span style={{ fontWeight: 'bold' }}>Exclusion:</span> {bank.reason || 'Criteria mismatch'}
-                        </div>
+                        {(bank.btNotAllowed || bank.isBTMode || bank.reason?.toLowerCase().includes('not allow') || bank.reason?.toLowerCase().includes('fresh funding')) ? (
+                          <div style={{
+                            background: '#FEF2F2',
+                            border: '1.5px solid #F87171',
+                            borderRadius: '8px',
+                            padding: '12px 14px',
+                            marginBottom: '10px'
+                          }}>
+                            <div style={{ color: '#991B1B', fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                              <span>🚫</span>
+                              <span>Not Allowed</span>
+                            </div>
+                            <div style={{ color: '#B91C1C', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                              {bank.reason || 'Balance Transfer is not permitted as per bank policy.'}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rejection-reason">
+                            <span style={{ fontWeight: 'bold' }}>Exclusion:</span> {bank.reason || 'Criteria mismatch'}
+                          </div>
+                        )}
                         {bank.category && (
                           <div className="rejected-meta" style={{ marginTop: '8px', color: 'rgb(66, 66, 66)', fontSize: '0.78rem' }}>
                             Identified Profile: Category {bank.category}

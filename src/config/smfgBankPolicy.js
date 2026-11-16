@@ -62,6 +62,10 @@ export const SMFG_BANK_EXCEL_POLICY = {
     ccObligationPercent: 5, // CC OBLIGATION: 0.05
     maxCcBt: 2, // MAX CC BT: 2 CC BT
     allowCcBt: true,
-    ccBtAllowedCount: 2
+    ccBtAllowedCount: 2,
+    allowPlBt: true,
+    plBtAllowedCount: 999,
+    totalBtCaseCap: 999,
+    allowAppLoanBt: true
   }
 };

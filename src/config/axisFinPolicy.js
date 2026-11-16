@@ -68,11 +68,14 @@ export const AXIS_FINANCE_EXCEL_POLICY = {
     minCibilScore: 0,
     ccObligationPercent: 5,
     allowCcBt: true,
-    ccBtAllowedCount: 5,
+    ccBtAllowedCount: 7,
     btRoi: 18.00,
     goldLoanObligationPercent: 1,
     goldLoanObligationText: 'GOLD LOAN OBLIGATION 1% COUNT',
     kccExemptionLimit: 1500000,
-    kccObligationText: 'KCC OBLIGATION UPTO 15LAC = 0 OBLIGATE'
+    kccObligationText: 'KCC OBLIGATION UPTO 15LAC = 0 OBLIGATE',
+    allowPlBt: true,
+    plBtAllowedCount: 7,
+    totalBtCaseCap: 7
   }
 };

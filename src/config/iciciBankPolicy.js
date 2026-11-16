@@ -131,6 +131,11 @@ export const ICICI_BANK_EXCEL_POLICY = {
     minCibilScore: 725,
     ccObligationPercent: 5,
     allowNtc: true,
-    rajasthanMinLoan: 610000
+    rajasthanMinLoan: 610000,
+    allowPlBt: true,
+    plBtAllowedCount: 3,
+    allowCcBt: false,
+    ccBtAllowedCount: 0,
+    totalBtCaseCap: 3
   }
 };

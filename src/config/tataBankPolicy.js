@@ -75,8 +75,13 @@ export const TATA_BANK_EXCEL_POLICY = {
       minCibilScore: 750,
       minIncome: 50000,
       minTradelineAmount: 200000,
-      minTradelineAgeYears: 2
-    },
+      minTradelineAgeYears: 2,
+    allowPlBt: true,
+    plBtAllowedCount: 6,
+    allowCcBt: true,
+    ccBtAllowedCount: 6,
+    totalBtCaseCap: 6
+  },
     minCibilScore: 0,
     minLoanAmount: 75000, // Excel Row 45: 75K
     minTenureMonths: 24, // Excel Row 35: 24 MONTHS

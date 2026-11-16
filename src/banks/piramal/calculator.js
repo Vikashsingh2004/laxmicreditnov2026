@@ -149,28 +149,45 @@ export const calculatePiramalEligibility = (userData, adminBankConfig) => {
   if (isBT) {
     const plLoans = (loansForBT || []).filter(l => l.loanType !== 'credit_card' && l.type !== 'Credit Card');
     const ccLoans = (loansForBT || []).filter(l => l.loanType === 'credit_card' || l.type === 'Credit Card');
+    const totalLoans = (loansForBT || []).length;
 
-    if (plLoans.length > 1) {
+    if (plLoans.length > 3) {
       return {
         eligible: false,
-        reason: `Piramal Finance permits maximum 1 Personal Loan for Balance Transfer (found ${plLoans.length}). Policy: 2 CC BT ALLOW WITH 1 PL BT`,
-        isBTMode: true
+        bankName: 'Piramal Finance',
+        reason: `Piramal Finance permits maximum 3 Personal Loans for Balance Transfer (found ${plLoans.length}). Policy: 2 CC BT ALLOW / 3 PL BT ALLOW`,
+        isBTMode: true,
+        btNotAllowed: true
       };
     }
 
     if (ccLoans.length > 2) {
       return {
         eligible: false,
-        reason: `Piramal Finance permits maximum 2 Credit Cards for Balance Transfer (found ${ccLoans.length}). Policy: 2 CC BT ALLOW WITH 1 PL BT`,
-        isBTMode: true
+        bankName: 'Piramal Finance',
+        reason: `Piramal Finance permits maximum 2 Credit Cards for Balance Transfer (found ${ccLoans.length}). Policy: 2 CC BT ALLOW / 3 PL BT ALLOW`,
+        isBTMode: true,
+        btNotAllowed: true
+      };
+    }
+
+    if (totalLoans > 3) {
+      return {
+        eligible: false,
+        bankName: 'Piramal Finance',
+        reason: `Piramal Finance permits maximum 3 total debts for Balance Transfer (found ${totalLoans}). Policy: 3 BT ALLOW`,
+        isBTMode: true,
+        btNotAllowed: true
       };
     }
 
     if (ccLoans.length > 0 && plLoans.length === 0) {
       return {
         eligible: false,
-        reason: 'Piramal Finance requires 1 Personal Loan BT along with Credit Card BT. Standalone Credit Card BT is not allowed (Policy: 2 CC BT ALLOW WITH 1 PL BT).',
-        isBTMode: true
+        bankName: 'Piramal Finance',
+        reason: 'Piramal Finance requires at least 1 Personal Loan BT along with Credit Card BT. Standalone Credit Card BT is not allowed (Policy: 2 CC BT ALLOW WITH PL BT).',
+        isBTMode: true,
+        btNotAllowed: true
       };
     }
   }

@@ -67,6 +67,11 @@ export const INCRED_BANK_EXCEL_POLICY = {
     goldLoanObligationPercent: 5,    // 5%
     kccObligationPercent: 5,         // 5%
     allowCcBt: false,                // Credit Card BT NOT allowed
-    ccBtAllowedCount: 0
+    ccBtAllowedCount: 0,
+    allowPlBt: false,
+    plBtAllowedCount: 0,
+    totalBtCaseCap: 0,
+    isFreshOnly: true,
+    btNotAllowed: true
   }
 };

@@ -175,6 +175,9 @@ export const BANDHAN_BANK_EXCEL_POLICY = {
     ccExemptionThresholdMultiplier: 3, // SALARY KA BELOW 3 TIME NO OBLIGATION
     exemptGlAndKcc: true, // GL AND KCC NOT OBLIGATE
     allowCcBt: false,
-    ccBtAllowedCount: 0
+    ccBtAllowedCount: 0,
+    allowPlBt: true,
+    plBtAllowedCount: 3,
+    totalBtCaseCap: 3
   }
 };

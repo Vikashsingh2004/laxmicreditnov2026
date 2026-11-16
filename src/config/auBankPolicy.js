@@ -118,6 +118,9 @@ export const AU_BANK_EXCEL_POLICY = {
     bachelorCapping: null,         // Bachelor Capping REMOVED (Not in policy)
     ccObligationPercent: 5,        // 5% OBLIGATE
     allowCcBt: false,              // ONLY PL BT (Credit Card BT strictly not allowed)
-    allowPlBt: true
+    allowPlBt: true,
+    plBtAllowedCount: 3,
+    ccBtAllowedCount: 0,
+    totalBtCaseCap: 3
   }
 };

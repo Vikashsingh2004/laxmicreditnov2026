@@ -62,20 +62,17 @@ export const calculateIncredEligibility = (inputData = {}) => {
     };
   }
 
-  // Check CC BT
+  // Balance Transfer Check (InCred policy: Only Fresh Funding allowed)
   const safeLoansForBT = Array.isArray(input.loansForBT || input.selectedLoansForBT) ? (input.loansForBT || input.selectedLoansForBT) : [];
-  const isCcBt = Boolean(input.isCcBt || (input.isBTMode && safeLoansForBT.some(l => {
-    if (!l) return false;
-    const t = String(l.loanType || l.type || '').toLowerCase();
-    return t.includes('credit') || t.includes('card') || t === 'cc';
-  })));
+  const isBT = Boolean(input.isBTMode || safeLoansForBT.length > 0);
 
-  if (isCcBt) {
+  if (isBT) {
     return {
       eligible: false,
       bankName: 'InCred Finance',
-      reason: `Credit Card Balance Transfer (CC BT) is strictly NOT allowed by InCred Finance policy`,
-      isBTMode: true
+      reason: 'InCred Finance only supports Fresh Funding. Balance Transfer is Not Allowed as per policy.',
+      isBTMode: true,
+      btNotAllowed: true
     };
   }
 
