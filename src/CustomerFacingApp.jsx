@@ -6,6 +6,8 @@ import FuturisticLanding from './components/FuturisticLanding.jsx';
 // import NeuralChatBot from './components/NeuralChatBot.jsx';
 import { calculateLoanEligibility } from './services/realLoanService.js';
 import { calculateBTWithCreditCards } from './services/btLoanService.js';
+import { calculateTopUpEligibility } from './services/topUpService.js';
+import { calculateODLimitEligibility } from './services/odLimitService.js';
 import { saveLead } from './services/leadService.js';
 import { aiPredictionService } from './services/aiPredictionService.js';
 import { neuralExplainerService } from './services/neuralExplainerService.js';
@@ -121,7 +123,15 @@ function CustomerFacingApp() {
             ...(submissionData.creditCards || []).map(c => ({ ...c, type: 'Credit Card', outstandingAmount: parseFloat(c.creditLimitUsed || 0) }))
           ];
 
-      if (hasLoansForBT && effectiveBtLoans.length > 0) {
+      const currentMode = submissionData?.mode || rawFormData?.mode || 'pl';
+
+      if (currentMode === 'topup') {
+        console.log('⚡ TOP-UP LOAN CALCULATION FOR BANK:', submissionData.topUpBank);
+        calculationResults = await calculateTopUpEligibility(submissionData);
+      } else if (currentMode === 'od') {
+        console.log('⚡ OVERDRAFT (OD) LIMIT CALCULATION');
+        calculationResults = await calculateODLimitEligibility(submissionData);
+      } else if (hasLoansForBT && effectiveBtLoans.length > 0) {
         console.log('🔄 BT MODE DETECTED!');
         const fullBtSubmission = {
           ...submissionData,
@@ -161,7 +171,7 @@ function CustomerFacingApp() {
 
       // --- 🧠 AI NEURAL PREDICTION (SAFE WRAPPER) ---
       try {
-        if (!hasLoansForBT) {
+        if (!hasLoansForBT && currentMode === 'pl') {
           const salary = parseFloat(submissionData.basicSalary) || parseFloat(submissionData.monthlyIncome) || 0;
           const score = parseInt(submissionData.creditScore) || 700;
           const tenure = parseInt(submissionData.loanTenure) || 5;
@@ -220,11 +230,13 @@ function CustomerFacingApp() {
   const navigate = useNavigate();
   const isMasterPortal = location.pathname === '/';
 
-  // Automatically scroll to top and open application form directly when visiting /personal-loan
+  // Automatically scroll to top and open application form directly when visiting loan routes
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    if (location.pathname === '/personal-loan') {
+    if (['/personal-loan', '/top-up-loan', '/od-limit'].includes(location.pathname)) {
       setShowForm(true);
+      setResults(null);
+      setError(null);
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       requestAnimationFrame(() => {
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -251,25 +263,17 @@ function CustomerFacingApp() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [results, navigate]);
 
-  return (
-    <div className="customer-facing-app">
-      {!isMasterPortal && <Navbar onHomeClick={handleHomeClick} />}
-      {/* <NeuralChatBot aiResult={aiResult} aiInsight={aiInsight} userData={lastFormDataRef.current} /> */}
-
-      <Routes>
-        <Route path="/" element={<MainMasterPortal />} />
-        <Route path="/personal-loan" element={
-          <>
-      {/* PAGE 1: Application Form — direct page replacement without intermediate landing */}
+  const renderProductPage = (mode) => (
+    <>
+      {/* PAGE 1: Application Form */}
       {(showForm || !results) && !results && (
         <div
           className="form-page"
           style={{ animation: 'formFadeIn 0.35s ease-out forwards' }}
         >
-
-
           {/* Unified Single Platform Form */}
           <CustomerLoanForm 
+            mode={mode}
             onSubmit={handleFormSubmit} 
             loading={loading} 
             initialData={savedFormData}
@@ -286,20 +290,31 @@ function CustomerFacingApp() {
         </div>
       )}
 
-            {/* PAGE 3: Results */}
-            {results && (
-              <div id="results-section">
-                <CustomerResultsDisplay
-                  results={results}
-                  metadata={metadata}
-                  aiResult={aiResult}
-                  aiInsight={aiInsight}
-                  onNewCalculation={handleNewCalculation}
-                />
-              </div>
-            )}
-          </>
-        } />
+      {/* PAGE 3: Results */}
+      {results && (
+        <div id="results-section">
+          <CustomerResultsDisplay
+            results={results}
+            metadata={metadata}
+            aiResult={aiResult}
+            aiInsight={aiInsight}
+            onNewCalculation={handleNewCalculation}
+          />
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="customer-facing-app">
+      {!isMasterPortal && <Navbar onHomeClick={handleHomeClick} />}
+      {/* <NeuralChatBot aiResult={aiResult} aiInsight={aiInsight} userData={lastFormDataRef.current} /> */}
+
+      <Routes>
+        <Route path="/" element={<MainMasterPortal />} />
+        <Route path="/personal-loan" element={renderProductPage('pl')} />
+        <Route path="/top-up-loan" element={renderProductPage('topup')} />
+        <Route path="/od-limit" element={renderProductPage('od')} />
         <Route path="/blog" element={<BlogHome />} />
         <Route path="/blog/:slug" element={<BlogArticle />} />
         <Route path="/admin/*" element={<AdminPortalApp />} />

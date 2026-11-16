@@ -28,7 +28,7 @@ export const LENDER_OPTIONS = [
   { value: "other", label: "Other Bank / NBFC (Not Listed)" }
 ];
 
-const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
+const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode = 'pl' }) => {
   const [formData, setFormData] = useState(() => {
     let saved = null;
     if (initialData && Object.keys(initialData).length > 0) {
@@ -89,6 +89,10 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
       creditCards: initialCards,
       wantsBT: saved?.wantsBT || false,
       selectedLoansForBT: saved?.selectedLoansForBT || [],
+      topUpBank: saved?.topUpBank || '',
+      topUpRunningAmount: saved?.topUpRunningAmount || '',
+      topUpRunningEMI: saved?.topUpRunningEMI || '',
+      topUpTenurePassed: saved?.topUpTenurePassed || '6_to_12m',
       state: saved?.state || '',
       city: saved?.city || '',
       maritalStatus: saved?.maritalStatus || '',
@@ -163,7 +167,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
     const { name, value, type, checked } = e.target;
 
     // Pure typed numeric inputs: allow ONLY digits, prevent any stepper/range shifts
-    const numericFields = ['basicSalary', 'incentiveMonth1', 'incentiveMonth2', 'incentiveMonth3', 'age', 'creditScore'];
+    const numericFields = ['basicSalary', 'incentiveMonth1', 'incentiveMonth2', 'incentiveMonth3', 'age', 'creditScore', 'topUpRunningAmount', 'topUpRunningEMI'];
     let finalValue = value;
     if (numericFields.includes(name)) {
       finalValue = value.replace(/[^0-9]/g, '');
@@ -335,7 +339,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
 
   const hasBTObligations = (formData.hasExistingLoans && formData.existingLoans?.length > 0) ||
     (formData.hasCreditCards && formData.creditCards?.length > 0);
-  const isBTSelectionPending = hasBTObligations && Boolean(formData.wantsBT) && (!formData.selectedLoansForBT || formData.selectedLoansForBT.length === 0);
+  const isBTSelectionPending = mode === 'pl' && hasBTObligations && Boolean(formData.wantsBT) && (!formData.selectedLoansForBT || formData.selectedLoansForBT.length === 0);
 
   const [validationError, setValidationError] = useState('');
 
@@ -347,6 +351,21 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
     if (isBTSelectionPending) {
       setValidationError('Please select at least one loan or credit card for Balance Transfer, or uncheck "Yes, I want to do Balance Transfer".');
       return;
+    }
+
+    // ── Guard: Top-Up specific validations ─────────────────────────────────
+    if (mode === 'topup') {
+      if (!formData.topUpBank) {
+        setValidationError('Please select the bank where your existing loan is currently active.');
+        document.getElementById('topUpBank')?.focus();
+        return;
+      }
+      const runningAmt = parseFloat(formData.topUpRunningAmount) || 0;
+      if (runningAmt <= 0) {
+        setValidationError('Please enter your current running loan balance/outstanding amount.');
+        document.getElementById('topUpRunningAmount')?.focus();
+        return;
+      }
     }
 
     // ── Guard: Name & Mobile required ──────────────────────────────────────
@@ -546,9 +565,19 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
       workExperienceMonths: formData.workExperience === 'below_3m' ? 2 : (formData.workExperience === '3m_to_24m' ? 12 : 25),
       totalWorkExperience: formData.workExperience === 'below_3m' ? 2 : (formData.workExperience === '3m_to_24m' ? 12 : 25),
       currentCompanyExperience: formData.workExperience === 'below_3m' ? 2 : (formData.workExperience === '3m_to_24m' ? 12 : 25),
+      productMode: mode,
+      topUpBank: formData.topUpBank,
+      topUpRunningAmount: parseFloat(formData.topUpRunningAmount || 0),
+      topUpRunningEMI: parseFloat(formData.topUpRunningEMI || 0),
+      topUpTenurePassed: formData.topUpTenurePassed || '6_to_12m',
 
       // Additional data for display purposes
       _metadata: {
+        productMode: mode,
+        topUpBank: formData.topUpBank,
+        topUpRunningAmount: parseFloat(formData.topUpRunningAmount || 0),
+        topUpRunningEMI: parseFloat(formData.topUpRunningEMI || 0),
+        topUpTenurePassed: formData.topUpTenurePassed || '6_to_12m',
         customerName: formData.customerName,
         mobileNumber: formData.mobileNumber,
         companyName: formData.companyName,
@@ -599,13 +628,78 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
           lineHeight: '54px',
           margin: '0 0 8px 0'
         }}>
-          Personal Loan <span style={{ color: '#F58220' }}>Eligibility Application</span>
+          {mode === 'topup' ? (
+            <>Existing Loan <span style={{ color: '#1E40AF' }}>Top-Up Application</span></>
+          ) : mode === 'od' ? (
+            <>Overdraft (OD) <span style={{ color: '#059669' }}>Limit Application</span></>
+          ) : (
+            <>Personal Loan <span style={{ color: '#F58220' }}>Eligibility Application</span></>
+          )}
         </h2>
-        <div style={{ width: '42px', height: '3.5px', backgroundColor: '#F58220', borderRadius: '2px', margin: '0 auto 12px' }} />
+        <div style={{
+          width: '42px',
+          height: '3.5px',
+          backgroundColor: mode === 'topup' ? '#1E40AF' : (mode === 'od' ? '#059669' : '#F58220'),
+          borderRadius: '2px',
+          margin: '0 auto 12px'
+        }} />
         <p>
-          Enter your details to discover instant pre-approved personal loan offers tailored to your profile with zero impact on CIBIL score.
+          {mode === 'topup' ? (
+            'Enter your details and existing running loan parameters to calculate your instant net cash top-up limit with zero bureau inquiry.'
+          ) : mode === 'od' ? (
+            'Calculate your pre-approved Overdraft credit lines across 5 leading institutions: Tata Capital, ABFL, Kotak Mahindra Bank, Cholamandalam, and IDFC FIRST Bank.'
+          ) : (
+            'Enter your details to discover instant pre-approved personal loan offers tailored to your profile with zero impact on CIBIL score.'
+          )}
         </p>
       </div>
+
+      {/* Mode-specific Banner */}
+      {mode === 'topup' && (
+        <div style={{
+          width: '100%',
+          padding: '14px 20px',
+          marginBottom: '20px',
+          background: '#EFF6FF',
+          border: '1.5px solid #93C5FD',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          color: '#1E40AF'
+        }}>
+          <span style={{ fontSize: '1.6rem' }}>⚡</span>
+          <div>
+            <strong style={{ fontSize: '1rem', display: 'block' }}>Loan Top-Up Calculator ($E - L$ Formula)</strong>
+            <span style={{ fontSize: '0.88rem', color: '#1E3A8A' }}>
+              We evaluate your bank's total sanction ceiling and subtract your running loan balance ($E - L$). The net cash difference is your disbursed top-up amount!
+            </span>
+          </div>
+        </div>
+      )}
+
+      {mode === 'od' && (
+        <div style={{
+          width: '100%',
+          padding: '14px 20px',
+          marginBottom: '20px',
+          background: '#ECFDF5',
+          border: '1.5px solid #6EE7B7',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          color: '#065F46'
+        }}>
+          <span style={{ fontSize: '1.6rem' }}>💳</span>
+          <div>
+            <strong style={{ fontSize: '1rem', display: 'block' }}>Institutional Overdraft (OD) Facility</strong>
+            <span style={{ fontSize: '0.88rem', color: '#047857' }}>
+              Assessing approved limits across <strong>Tata Capital, Aditya Birla Finance, Kotak Mahindra Bank, Cholamandalam, and IDFC FIRST Bank</strong>. Pay interest ONLY when you withdraw funds.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Personal Details */}
       <div className="form-section">
@@ -1145,9 +1239,125 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
         </div>
       </div>
 
+      {/* Top-Up Running Loan Section (Top-Up Mode Only) */}
+      {mode === 'topup' && (
+        <div className="form-section" style={{ background: '#F0F9FF', borderLeft: '4px solid #0284C7', borderRadius: '12px', padding: '24px' }}>
+          <h3 style={{ color: '#0369A1', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>⚡</span> Existing Running Loan for Top-Up
+          </h3>
+          <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '18px', lineHeight: '1.5' }}>
+            Provide details of the running personal loan on which you want to calculate your additional top-up limit. Your top-up is computed as <strong>Total Bank Eligibility Capacity ($E$) minus Current Running Loan Balance ($L$)</strong>.
+          </p>
+
+          <div className="form-row-two">
+            <div className="form-group">
+              <label htmlFor="topUpBank" style={{ fontWeight: 700, color: '#1E293B' }}>
+                Bank / Lender of Running Loan <span className="required">*</span>
+              </label>
+              <select
+                id="topUpBank"
+                name="topUpBank"
+                value={formData.topUpBank || ''}
+                onChange={handleInputChange}
+                required
+                style={{
+                  fontWeight: 600,
+                  color: '#1E293B',
+                  backgroundColor: '#FFFFFF',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '12px 14px'
+                }}
+              >
+                <option value="">-- Select Your Existing Bank --</option>
+                <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                <option value="Tata Capital">Tata Capital</option>
+                <option value="HDFC Bank">HDFC Bank</option>
+                <option value="ICICI Bank">ICICI Bank</option>
+                <option value="IDFC First Bank">IDFC FIRST Bank</option>
+                <option value="Cholamandalam Finance">Cholamandalam Finance (Chola)</option>
+                <option value="Aditya Birla Finance">Aditya Birla Finance (ABFL)</option>
+                <option value="Axis Bank">Axis Bank</option>
+                <option value="Axis Finance">Axis Finance</option>
+                <option value="Poonawala Finance">Poonawalla Fincorp</option>
+                <option value="IndusInd Bank">IndusInd Bank</option>
+                <option value="Piramal Finance">Piramal Finance</option>
+                <option value="L&T Finance">L&T Finance</option>
+                <option value="SMFG India Credit">SMFG India Credit</option>
+                <option value="Incred Finance">Incred Finance</option>
+                <option value="AU Small Finance Bank">AU Small Finance Bank</option>
+                <option value="Bandhan Bank">Bandhan Bank</option>
+                <option value="other">Other Bank / NBFC</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="topUpRunningAmount" style={{ fontWeight: 700, color: '#1E293B' }}>
+                Current Running Loan Balance / POS (₹) <span className="required">*</span>
+              </label>
+              <input
+                type="text"
+                id="topUpRunningAmount"
+                name="topUpRunningAmount"
+                value={formData.topUpRunningAmount || ''}
+                onChange={handleInputChange}
+                placeholder="e.g. 500000"
+                required
+                inputMode="numeric"
+                style={{ fontWeight: 600, color: '#1E293B', backgroundColor: '#FFFFFF' }}
+              />
+              <small className="help-text">Outstanding principal remaining on this loan</small>
+            </div>
+          </div>
+
+          <div className="form-row-two" style={{ marginTop: '12px' }}>
+            <div className="form-group">
+              <label htmlFor="topUpRunningEMI" style={{ fontWeight: 700, color: '#1E293B' }}>
+                Current Monthly EMI (₹) <span className="required">*</span>
+              </label>
+              <input
+                type="text"
+                id="topUpRunningEMI"
+                name="topUpRunningEMI"
+                value={formData.topUpRunningEMI || ''}
+                onChange={handleInputChange}
+                placeholder="e.g. 14000"
+                required
+                inputMode="numeric"
+                style={{ fontWeight: 600, color: '#1E293B', backgroundColor: '#FFFFFF' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="topUpTenurePassed" style={{ fontWeight: 700, color: '#1E293B' }}>
+                Tenure Paid / Vintage
+              </label>
+              <select
+                id="topUpTenurePassed"
+                name="topUpTenurePassed"
+                value={formData.topUpTenurePassed || '6_to_12m'}
+                onChange={handleInputChange}
+                style={{
+                  fontWeight: 600,
+                  color: '#1E293B',
+                  backgroundColor: '#FFFFFF',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '12px 14px'
+                }}
+              >
+                <option value="below_6m">Less than 6 EMIs Paid</option>
+                <option value="6_to_12m">6 to 12 EMIs Paid (Eligible for Standard Top-Up)</option>
+                <option value="above_12m">12+ EMIs Paid (Eligible for Lowest Interest Top-Up)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Existing Loans and Credit Cards */}
       <div className="form-section">
-        <h3>Financial Commitments</h3>
+        <h3>{mode === 'topup' ? 'Any Other Obligations & Liabilities (Optional)' : 'Financial Commitments'}</h3>
 
         {/* 1. Existing Loans First */}
         <div className="form-group checkbox-group" style={{ marginBottom: formData.hasExistingLoans ? '15px' : '22px' }}>
@@ -1386,6 +1596,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
 
       {/* Balance Transfer Section */}
       {
+        mode === 'pl' &&
         ((formData.hasExistingLoans && formData.existingLoans.length > 0) ||
          (formData.hasCreditCards && formData.creditCards && formData.creditCards.length > 0)) && (
           <div className="form-section" style={{ background: '#f0f7ff', borderLeft: '4px solid #2196f3' }}>
@@ -1594,7 +1805,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
           type="submit"
           className="btn-submit"
           disabled={loading || isBTSelectionPending}
-          title={isBTSelectionPending ? 'Select at least one loan or credit card for BT, or uncheck Balance Transfer' : 'Generate Eligibility Report'}
+          title={isBTSelectionPending ? 'Select at least one loan or credit card for BT, or uncheck Balance Transfer' : (mode === 'topup' ? 'Check Top-Up Loan Eligibility' : (mode === 'od' ? 'Check Overdraft (OD) Limit' : 'Generate Eligibility Report'))}
           style={{
             fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             fontStyle: 'normal',
@@ -1602,10 +1813,10 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
             color: isBTSelectionPending ? '#64748b' : 'rgb(255, 255, 255)',
             fontSize: '18px',
             lineHeight: '24px',
-            backgroundColor: isBTSelectionPending ? '#cbd5e1' : undefined,
+            backgroundColor: isBTSelectionPending ? '#cbd5e1' : (mode === 'topup' ? '#1E40AF' : (mode === 'od' ? '#059669' : undefined)),
             cursor: isBTSelectionPending ? 'not-allowed' : 'pointer',
             opacity: isBTSelectionPending ? 0.75 : 1,
-            boxShadow: isBTSelectionPending ? 'none' : undefined,
+            boxShadow: isBTSelectionPending ? 'none' : (mode === 'topup' ? '0 10px 24px rgba(30, 64, 175, 0.3)' : (mode === 'od' ? '0 10px 24px rgba(5, 150, 105, 0.3)' : undefined)),
             transition: 'all 0.2s ease'
           }}
         >
@@ -1613,7 +1824,9 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
             ? 'Processing Analysis...' 
             : (isBTSelectionPending 
                 ? '⚠️ Select Loan / Card for BT to Proceed' 
-                : 'Generate Eligibility Report')}
+                : (mode === 'topup'
+                    ? 'Check Top-Up Loan Eligibility'
+                    : (mode === 'od' ? 'Check Overdraft (OD) Limit' : 'Generate Eligibility Report')))}
         </button>
       </div>
 

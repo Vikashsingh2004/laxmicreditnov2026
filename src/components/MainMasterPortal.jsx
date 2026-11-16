@@ -134,48 +134,152 @@ const MainMasterPortal = ({ onAdminClick }) => {
                 </span>
               </motion.h1>
 
-              {/* Check Loan Eligibility Button */}
-              <div style={{ marginBottom: '1rem', textAlign: 'left', display: 'flex', justifyContent: 'flex-start' }}>
+              {/* Product Action Buttons */}
+              <div style={{ marginBottom: '1.25rem', textAlign: 'left', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
                 <Link to="/personal-loan" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })} style={{ textDecoration: 'none' }}>
                   <motion.button
                     className="check-eligibility-btn"
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     style={{
-                      background: 'linear-gradient(135deg, #F58220 0%, #F47A20 100%)',
+                      background: 'linear-gradient(135deg, #F58220 0%, #EA580C 100%)',
                       color: '#ffffff',
                       border: 'none',
                       borderRadius: '50px',
-                      padding: '16px 48px',
+                      padding: '14px 28px',
                       cursor: 'pointer',
-                      boxShadow: '0 10px 28px rgba(245, 130, 32, 0.4)',
-                      textAlign: 'center',
+                      boxShadow: '0 8px 22px rgba(245, 130, 32, 0.4)',
+                      textAlign: 'left',
                       display: 'inline-flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: '12px',
                       fontFamily: "'Mulish', 'Plus Jakarta Sans', sans-serif"
                     }}
                   >
-                    <span style={{ 
-                      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"',
-                      fontSize: '18px', 
-                      fontWeight: 750, 
-                      color: 'rgb(255, 255, 255)',
-                      lineHeight: 'normal',
-                      letterSpacing: '0.2px' 
-                    }}>
-                      Check loan eligibility
-                    </span>
-                    <span style={{ 
-                      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"',
-                      fontSize: '13px', 
-                      fontWeight: 500, 
-                      color: 'rgba(255, 255, 255, 0.95)', 
-                      marginTop: '3px' 
-                    }}>
-                      In less than a minute
-                    </span>
+                    <div style={{ background: 'rgba(255,255,255,0.22)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem' }}>
+                      ⚡
+                    </div>
+                    <div>
+                      <span style={{ 
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontSize: '16px', 
+                        fontWeight: 750, 
+                        color: 'rgb(255, 255, 255)',
+                        lineHeight: '1.2',
+                        letterSpacing: '0.2px',
+                        display: 'block'
+                      }}>
+                        Personal Loan & BT
+                      </span>
+                      <span style={{ 
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontSize: '12px', 
+                        fontWeight: 500, 
+                        color: 'rgba(255, 255, 255, 0.92)', 
+                        marginTop: '2px',
+                        display: 'block'
+                      }}>
+                        12+ Banks Eligibility
+                      </span>
+                    </div>
+                  </motion.button>
+                </Link>
+
+                <Link to="/top-up-loan" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })} style={{ textDecoration: 'none' }}>
+                  <motion.button
+                    className="check-topup-btn"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '50px',
+                      padding: '14px 28px',
+                      cursor: 'pointer',
+                      boxShadow: '0 8px 22px rgba(5, 150, 105, 0.4)',
+                      textAlign: 'left',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontFamily: "'Mulish', 'Plus Jakarta Sans', sans-serif"
+                    }}
+                  >
+                    <div style={{ background: 'rgba(255,255,255,0.22)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem' }}>
+                      📈
+                    </div>
+                    <div>
+                      <span style={{ 
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontSize: '16px', 
+                        fontWeight: 750, 
+                        color: 'rgb(255, 255, 255)',
+                        lineHeight: '1.2',
+                        letterSpacing: '0.2px',
+                        display: 'block'
+                      }}>
+                        Check Loan Top-Up
+                      </span>
+                      <span style={{ 
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontSize: '12px', 
+                        fontWeight: 500, 
+                        color: 'rgba(255, 255, 255, 0.92)', 
+                        marginTop: '2px',
+                        display: 'block'
+                      }}>
+                        On Existing Loan (E - L)
+                      </span>
+                    </div>
+                  </motion.button>
+                </Link>
+
+                <Link to="/od-limit" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })} style={{ textDecoration: 'none' }}>
+                  <motion.button
+                    className="check-od-btn"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '50px',
+                      padding: '14px 28px',
+                      cursor: 'pointer',
+                      boxShadow: '0 8px 22px rgba(124, 58, 237, 0.4)',
+                      textAlign: 'left',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontFamily: "'Mulish', 'Plus Jakarta Sans', sans-serif"
+                    }}
+                  >
+                    <div style={{ background: 'rgba(255,255,255,0.22)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem' }}>
+                      🛡️
+                    </div>
+                    <div>
+                      <span style={{ 
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontSize: '16px', 
+                        fontWeight: 750, 
+                        color: 'rgb(255, 255, 255)',
+                        lineHeight: '1.2',
+                        letterSpacing: '0.2px',
+                        display: 'block'
+                      }}>
+                        Check OD Limit
+                      </span>
+                      <span style={{ 
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        fontSize: '12px', 
+                        fontWeight: 500, 
+                        color: 'rgba(255, 255, 255, 0.92)', 
+                        marginTop: '2px',
+                        display: 'block'
+                      }}>
+                        Top 5 Banks Overdraft
+                      </span>
+                    </div>
                   </motion.button>
                 </Link>
               </div>
@@ -1596,37 +1700,85 @@ const MainMasterPortal = ({ onAdminClick }) => {
                     fontStyle: 'normal',
                     fontWeight: 550, 
                     color: 'rgb(98, 98, 98)', 
-                    fontSize: '28px',
-                    lineHeight: '40px'
+                    fontSize: '24px',
+                    lineHeight: '36px'
                   }}
                 >
-                  Compare your loan eligibility
+                  Instant Eligibility Check:
                 </span>
-                <Link to="/personal-loan" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })} style={{ textDecoration: 'none' }}>
-                  <motion.button
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    style={{
-                      background: '#F58220',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '50px',
-                      padding: '10px 30px',
-                      fontSize: '18px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 14px rgba(245, 130, 32, 0.35)',
-                      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                      letterSpacing: '0.2px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      lineHeight: '24px'
-                    }}
-                  >
-                    Check now
-                  </motion.button>
-                </Link>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Link to="/personal-loan" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })} style={{ textDecoration: 'none' }}>
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.96 }}
+                      style={{
+                        background: '#F58220',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '50px',
+                        padding: '10px 22px',
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(245, 130, 32, 0.35)',
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      ⚡ Personal Loan & BT
+                    </motion.button>
+                  </Link>
+
+                  <Link to="/top-up-loan" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })} style={{ textDecoration: 'none' }}>
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.96 }}
+                      style={{
+                        background: '#059669',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '50px',
+                        padding: '10px 22px',
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      📈 Loan Top-Up
+                    </motion.button>
+                  </Link>
+
+                  <Link to="/od-limit" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })} style={{ textDecoration: 'none' }}>
+                    <motion.button
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.96 }}
+                      style={{
+                        background: '#7C3AED',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '50px',
+                        padding: '10px 22px',
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      🛡️ OD Limit
+                    </motion.button>
+                  </Link>
+                </div>
               </div>
             </motion.div>
           )}
