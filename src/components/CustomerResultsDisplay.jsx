@@ -120,27 +120,48 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
       ? (metadata.salaryMode === 'bank' ? 'Bank Credit' : metadata.salaryMode.toUpperCase()) 
       : 'Bank Credit';
 
-    // Existing Obligations & Liabilities
-    const existingLoansList = Array.isArray(metadata?.existingLoans) ? metadata.existingLoans : [];
-    const existingCardsList = Array.isArray(metadata?.creditCards) ? metadata.creditCards : [];
-    
-    const loansEmiTotal = existingLoansList.reduce((sum, loan) => {
-      const emiVal = parseFloat(loan.monthlyEMI) || parseFloat(loan.emi) || 0;
+    // Existing Obligations & Liabilities (Strictly filter genuine active obligations)
+    const validLoans = (metadata?.hasExistingLoans !== false && Array.isArray(metadata?.existingLoans))
+      ? metadata.existingLoans.filter(l => (
+          (parseFloat(l?.monthlyEMI) > 0 || parseFloat(l?.emi) > 0 || parseFloat(l?.outstandingAmount) > 0)
+        ))
+      : [];
+
+    const validCards = (Boolean(metadata?.hasCreditCards) && Array.isArray(metadata?.creditCards))
+      ? metadata.creditCards.filter(c => (
+          (parseFloat(c?.creditLimitUsed) > 0 || parseFloat(c?.creditLimit) > 0 || parseFloat(c?.outstandingAmount) > 0)
+        ))
+      : [];
+
+    const loansEmiTotal = validLoans.reduce((sum, loan) => {
+      const emiVal = parseFloat(loan?.monthlyEMI) || parseFloat(loan?.emi) || 0;
       return sum + emiVal;
     }, 0);
-    
-    const cardsObligationTotal = existingCardsList.reduce((sum, card) => {
-      const used = parseFloat(card.creditLimitUsed || card.outstandingAmount || 0);
+
+    const cardsObligationTotal = validCards.reduce((sum, card) => {
+      const used = parseFloat(card?.creditLimitUsed || card?.outstandingAmount || 0);
       return sum + (used * 0.05);
     }, 0);
 
-    const totalObligation = loansEmiTotal > 0 
+    const totalObligation = (loansEmiTotal + cardsObligationTotal) > 0 
       ? (loansEmiTotal + cardsObligationTotal)
       : (parseFloat(metadata?.existingEMI) || 0);
 
-    const activeCount = existingLoansList.length + existingCardsList.length;
+    const totalActiveCount = validLoans.length + validCards.length;
+
+    let obligationsDetailText = '';
+    if (validLoans.length > 0 && validCards.length > 0) {
+      obligationsDetailText = `${totalActiveCount} Active (${validLoans.length} Loan${validLoans.length > 1 ? 's' : ''}, ${validCards.length} Card${validCards.length > 1 ? 's' : ''})`;
+    } else if (validLoans.length > 0) {
+      obligationsDetailText = `${validLoans.length} Active Loan${validLoans.length > 1 ? 's' : ''}`;
+    } else if (validCards.length > 0) {
+      obligationsDetailText = `${validCards.length} Active Card${validCards.length > 1 ? 's' : ''}`;
+    } else if (totalObligation > 0) {
+      obligationsDetailText = `1 Active Obligation`;
+    }
+
     const existingLoansText = totalObligation > 0 
-      ? `₹${Math.round(totalObligation).toLocaleString('en-IN')}/mo (${activeCount > 0 ? activeCount : 1} Active Obligation${activeCount > 1 ? 's' : ''})`
+      ? `₹${Math.round(totalObligation).toLocaleString('en-IN')}/mo (${obligationsDetailText})`
       : 'Zero Active Loans (Nil EMI)';
 
     // Balance Transfer Mode Indicator
@@ -508,12 +529,12 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
       const reportHtml = generateCustomerSummaryHtml();
 
       const opt = {
-        margin: [5, 5, 5, 5],
+        margin: [4, 4, 4, 4],
         filename: cleanFileName,
-        image: { type: 'jpeg', quality: 0.98 },
+        image: { type: 'jpeg', quality: 0.90 },
         html2canvas: {
-          scale: 2,
-          useCORS: true,
+          scale: 1.5,
+          useCORS: false,
           logging: false
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -641,7 +662,7 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                 opacity: isDownloading ? 0.8 : 1
               }}
             >
-              {isDownloading ? 'Downloading Report...' : 'Download your eligibility report'}
+              {isDownloading ? 'Generating Fast PDF Report... ⏳' : 'Download your eligibility report'}
             </button>
           </div>
         </div>

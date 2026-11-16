@@ -498,6 +498,8 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
       category: formData.employmentType === 'government' ? 'GOVT' : formData.category,
       employmentType: formData.employmentType,
       companyName: formData.companyName,
+      hasExistingLoans: Boolean(formData.hasExistingLoans),
+      hasCreditCards: Boolean(formData.hasCreditCards),
       existingEMI: totalExistingEMI,
       creditCardObligation: Math.round(totalCreditCardObligation), // Directly computed 5% internally
       creditCards: activeCreditCards.map(card => ({
@@ -1403,73 +1405,113 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
                 <h4 style={{ marginBottom: '15px', color: '#1976d2' }}>Select Loans / Cards for Balance Transfer:</h4>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {formData.hasExistingLoans && formData.existingLoans.map((loan, index) => (
-                    <div
-                      key={loan.id}
-                      style={{
-                        padding: '15px',
-                        background: 'white',
-                        borderRadius: '8px',
-                        border: formData.selectedLoansForBT.includes(loan.id) ? '2px solid #2196f3' : '2px solid #e0e0e0',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onClick={() => handleBTToggle(loan.id)}
-                    >
-                      <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <input
-                          type="checkbox"
-                          checked={formData.selectedLoansForBT.includes(loan.id)}
-                          onChange={() => handleBTToggle(loan.id)}
-                          style={{ marginTop: '4px', width: '18px', height: '18px', cursor: 'pointer' }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: '1.05em', marginBottom: '8px', color: '#333' }}>
-                            Loan {index + 1}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '0.9em', color: '#666' }}>
-                            <div>🏦 <strong>Bank:</strong> <span style={{ textTransform: 'capitalize' }}>{loan.lender || 'Not specified'}</span></div>
-                            <div>💵 <strong>Outstanding:</strong> ₹{loan.outstandingAmount ? parseFloat(loan.outstandingAmount).toLocaleString('en-IN') : '0'}</div>
-                            <div>💳 <strong>EMI:</strong> ₹{loan.monthlyEMI ? parseFloat(loan.monthlyEMI).toLocaleString('en-IN') : '0'}</div>
+                  {formData.hasExistingLoans && formData.existingLoans.map((loan, index) => {
+                    const isSelected = formData.selectedLoansForBT.includes(loan.id);
+                    return (
+                      <div
+                        key={loan.id}
+                        style={{
+                          padding: '14px 16px',
+                          background: isSelected ? '#F0F9FF' : '#FFFFFF',
+                          borderRadius: '8px',
+                          border: isSelected ? '2px solid #2196f3' : '2px solid #e2e8f0',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: isSelected ? '0 2px 6px rgba(33, 150, 243, 0.15)' : 'none'
+                        }}
+                        onClick={() => handleBTToggle(loan.id)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleBTToggle(loan.id);
+                            }}
+                            style={{ marginTop: '4px', width: '18px', height: '18px', cursor: 'pointer' }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                              <span style={{ fontWeight: '700', fontSize: '1.02em', color: isSelected ? '#1E40AF' : '#334155' }}>
+                                Loan {index + 1}
+                              </span>
+                              <span style={{
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                background: isSelected ? '#DBEAFE' : '#F1F5F9',
+                                color: isSelected ? '#1E40AF' : '#64748B'
+                              }}>
+                                {isSelected ? '✓ Selected for BT' : 'Click to Select'}
+                              </span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '0.9em', color: '#64748b' }}>
+                              <div>🏦 <strong>Bank:</strong> <span style={{ textTransform: 'capitalize', color: '#1e293b' }}>{loan.lender || 'Not specified'}</span></div>
+                              <div>💵 <strong>Outstanding:</strong> <span style={{ color: '#1e293b', fontWeight: 600 }}>₹{loan.outstandingAmount ? parseFloat(loan.outstandingAmount).toLocaleString('en-IN') : '0'}</span></div>
+                              <div>💳 <strong>EMI:</strong> <span style={{ color: '#1e293b', fontWeight: 600 }}>₹{loan.monthlyEMI ? parseFloat(loan.monthlyEMI).toLocaleString('en-IN') : '0'}</span></div>
+                            </div>
                           </div>
                         </div>
-                      </label>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
 
-                  {formData.hasCreditCards && formData.creditCards && formData.creditCards.map((card, index) => (
-                    <div
-                      key={card.id}
-                      style={{
-                        padding: '15px',
-                        background: 'white',
-                        borderRadius: '8px',
-                        border: formData.selectedLoansForBT.includes(card.id) ? '2px solid #0284c7' : '2px solid #e0e0e0',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onClick={() => handleBTToggle(card.id)}
-                    >
-                      <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                        <input
-                          type="checkbox"
-                          checked={formData.selectedLoansForBT.includes(card.id)}
-                          onChange={() => handleBTToggle(card.id)}
-                          style={{ marginTop: '4px', width: '18px', height: '18px', cursor: 'pointer' }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: '1.05em', marginBottom: '8px', color: '#0369a1' }}>
-                            💳 Credit Card {index + 1}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '0.9em', color: '#666' }}>
-                            <div>🏦 <strong>Bank:</strong> <span style={{ textTransform: 'capitalize' }}>{card.lender || 'Not specified'}</span></div>
-                            <div>💳 <strong>Credit Limit:</strong> ₹{card.creditLimit ? parseFloat(card.creditLimit).toLocaleString('en-IN') : '0'}</div>
-                            <div>💵 <strong>Outstanding Used:</strong> ₹{card.creditLimitUsed ? parseFloat(card.creditLimitUsed).toLocaleString('en-IN') : '0'}</div>
+                  {formData.hasCreditCards && formData.creditCards && formData.creditCards.map((card, index) => {
+                    const isSelected = formData.selectedLoansForBT.includes(card.id);
+                    return (
+                      <div
+                        key={card.id}
+                        style={{
+                          padding: '14px 16px',
+                          background: isSelected ? '#F0FDF4' : '#FFFFFF',
+                          borderRadius: '8px',
+                          border: isSelected ? '2px solid #0284c7' : '2px solid #e2e8f0',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: isSelected ? '0 2px 6px rgba(2, 132, 199, 0.15)' : 'none'
+                        }}
+                        onClick={() => handleBTToggle(card.id)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleBTToggle(card.id);
+                            }}
+                            style={{ marginTop: '4px', width: '18px', height: '18px', cursor: 'pointer' }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                              <span style={{ fontWeight: '700', fontSize: '1.02em', color: isSelected ? '#0369a1' : '#334155' }}>
+                                💳 Credit Card {index + 1}
+                              </span>
+                              <span style={{
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                background: isSelected ? '#CFFAFE' : '#F1F5F9',
+                                color: isSelected ? '#0369a1' : '#64748B'
+                              }}>
+                                {isSelected ? '✓ Selected for BT' : 'Click to Select'}
+                              </span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '0.9em', color: '#64748b' }}>
+                              <div>🏦 <strong>Bank:</strong> <span style={{ textTransform: 'capitalize', color: '#1e293b' }}>{card.lender || 'Not specified'}</span></div>
+                              <div>💳 <strong>Credit Limit:</strong> <span style={{ color: '#1e293b', fontWeight: 600 }}>₹{card.creditLimit ? parseFloat(card.creditLimit).toLocaleString('en-IN') : '0'}</span></div>
+                              <div>💵 <strong>Outstanding Used:</strong> <span style={{ color: '#1e293b', fontWeight: 600 }}>₹{card.creditLimitUsed ? parseFloat(card.creditLimitUsed).toLocaleString('en-IN') : '0'}</span></div>
+                            </div>
                           </div>
                         </div>
-                      </label>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {formData.selectedLoansForBT.length > 0 && (
@@ -1491,39 +1533,6 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
                           .reduce((sum, card) => sum + (parseFloat(card.creditLimitUsed) || 0), 0)
                       ).toLocaleString('en-IN')}
                     </div>
-
-                    {/* Piramal Finance BT Indicator */}
-                    {(() => {
-                      const selLoans = (formData.hasExistingLoans ? formData.existingLoans : []).filter(l => formData.selectedLoansForBT.includes(l.id));
-                      const selCards = (formData.hasCreditCards && formData.creditCards ? formData.creditCards : []).filter(c => formData.selectedLoansForBT.includes(c.id));
-                      const isPiramalBtCompliant = selLoans.length <= 1 && selCards.length <= 2 && (selCards.length === 0 || selLoans.length === 1);
-
-                      return (
-                        <div style={{
-                          marginTop: '12px',
-                          padding: '10px 14px',
-                          borderRadius: '6px',
-                          background: isPiramalBtCompliant ? 'rgba(31, 78, 120, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                          border: `1px solid ${isPiramalBtCompliant ? '#1F4E78' : '#ef4444'}`,
-                          fontSize: '0.84rem'
-                        }}>
-                          <div style={{ fontWeight: 600, color: isPiramalBtCompliant ? '#1F4E78' : '#dc2626', marginBottom: '3px' }}>
-                            🏦 Piramal Finance BT Policy: 2 CC BT ALLOW WITH 1 PL BT
-                          </div>
-                          {isPiramalBtCompliant ? (
-                            <div style={{ color: '#047857' }}>
-                              ✓ Current selection complies with Piramal Finance ({selLoans.length} PL BT + {selCards.length} CC BT).
-                            </div>
-                          ) : (
-                            <div style={{ color: '#b91c1c' }}>
-                              {selLoans.length > 1 && <div>⚠️ Piramal allows max 1 Personal Loan for BT (selected: {selLoans.length}).</div>}
-                              {selCards.length > 2 && <div>⚠️ Piramal allows max 2 Credit Cards for BT (selected: {selCards.length}).</div>}
-                              {selCards.length > 0 && selLoans.length === 0 && <div>⚠️ Piramal requires 1 Personal Loan BT along with Credit Card BT (standalone CC BT not permitted).</div>}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
                   </div>
                 )}
 

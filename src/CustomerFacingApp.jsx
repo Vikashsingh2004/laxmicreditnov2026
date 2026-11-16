@@ -50,6 +50,9 @@ function CustomerFacingApp() {
     setError(null);
     setResults(null);
 
+    const hasActiveLoans = Boolean(submissionData?.hasExistingLoans ?? rawFormData?.hasExistingLoans);
+    const hasActiveCards = Boolean(submissionData?.hasCreditCards ?? rawFormData?.hasCreditCards);
+
     // Form unified reliable customer data object
     const combinedData = {
       ...(rawFormData || {}),
@@ -68,8 +71,10 @@ function CustomerFacingApp() {
       salaryMode: rawFormData?.salaryMode || submissionData?.salaryMode || 'bank',
       hasPpfDeduction: rawFormData?.hasPpfDeduction !== undefined ? rawFormData.hasPpfDeduction : (submissionData?.hasPpfDeduction !== undefined ? submissionData.hasPpfDeduction : true),
       hasPfDeduction: rawFormData?.hasPfDeduction !== undefined ? rawFormData.hasPfDeduction : (submissionData?.hasPfDeduction !== undefined ? submissionData.hasPfDeduction : true),
-      existingLoans: rawFormData?.existingLoans || submissionData?.existingLoans || submissionData?._metadata?.existingLoans || [],
-      creditCards: rawFormData?.creditCards || submissionData?.creditCards || submissionData?._metadata?.creditCards || [],
+      hasExistingLoans: hasActiveLoans,
+      hasCreditCards: hasActiveCards,
+      existingLoans: hasActiveLoans ? (submissionData?.existingLoans || rawFormData?.existingLoans || []).filter(l => (parseFloat(l?.monthlyEMI) > 0 || parseFloat(l?.emi) > 0 || parseFloat(l?.outstandingAmount) > 0)) : [],
+      creditCards: hasActiveCards ? (submissionData?.creditCards || rawFormData?.creditCards || []).filter(c => (parseFloat(c?.creditLimitUsed) > 0 || parseFloat(c?.creditLimit) > 0 || parseFloat(c?.outstandingAmount) > 0)) : [],
       existingEMI: submissionData?.existingEMI ?? rawFormData?.existingEMI ?? 0,
       isBTMode: Boolean(submissionData?.wantsBT && ((submissionData?.loansForBT && submissionData.loansForBT.length > 0) || (submissionData?.existingLoans && submissionData.existingLoans.length > 0))),
       wantsBT: Boolean(submissionData?.wantsBT),
@@ -84,9 +89,9 @@ function CustomerFacingApp() {
       localStorage.setItem('laxmi_last_form_data', JSON.stringify(combinedData));
     } catch (e) {}
 
-    // Save lead into database immediately on "Check Eligibility"
+    // Save lead into database immediately in background (non-blocking for instant calculation)
     try {
-      await saveLead(combinedData, submissionData);
+      saveLead(combinedData, submissionData).catch(saveErr => console.warn('Non-blocking lead save notice:', saveErr));
     } catch (saveErr) {
       console.warn('Non-blocking lead save notice:', saveErr);
     }
@@ -140,12 +145,12 @@ function CustomerFacingApp() {
       setResults(calculationResults);
       setMetadata(combinedData);
 
-      // Save/update lead in Cloud Firestore & LocalStorage with exact list of eligible banks in short form
+      // Save/update lead in Cloud Firestore & LocalStorage in background (non-blocking)
       try {
         const approvedBanks = (calculationResults || [])
           .filter(r => r && r.eligible)
           .map(r => r.bankName);
-        await saveLead(combinedData, submissionData, approvedBanks);
+        saveLead(combinedData, submissionData, approvedBanks).catch(err => console.warn('Lead background update:', err));
       } catch (postSaveErr) {
         console.warn('Post-calculation lead update notice:', postSaveErr);
       }
