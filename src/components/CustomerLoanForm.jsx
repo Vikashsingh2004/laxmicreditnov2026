@@ -1537,11 +1537,13 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
                   </div>
                 </div>
 
-                {/* Show which banks will be excluded */}
-                {formData.existingLoans.some(loan =>
+                {/* Show which banks will be excluded (Personal Loan Mode Only for matching partner lenders) */}
+                {mode === 'pl' && formData.existingLoans.some(loan =>
                   loan.lender &&
                   loan.lender.trim() !== '' &&
-                  loan.lender !== 'other'
+                  loan.lender !== 'other' &&
+                  loan.loanType === 'pl' &&
+                  LENDER_OPTIONS.some(opt => opt.value === loan.lender.toLowerCase() && opt.value !== 'other' && !opt.value.includes('sbi') && !opt.value.includes('standard') && !opt.value.includes('hsbc') && !opt.value.includes('rbl'))
                 ) && (
                   <div style={{ marginTop: '10px', padding: '10px', background: '#fff3cd', borderRadius: '5px', borderLeft: '4px solid #ffc107' }}>
                     <strong>Bank Exclusions Detected:</strong>
@@ -1550,16 +1552,18 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
                         .filter(loan =>
                           loan.lender &&
                           loan.lender.trim() !== '' &&
-                          loan.lender !== 'other'
+                          loan.lender !== 'other' &&
+                          loan.loanType === 'pl' &&
+                          LENDER_OPTIONS.some(opt => opt.value === loan.lender.toLowerCase() && opt.value !== 'other' && !opt.value.includes('sbi') && !opt.value.includes('standard') && !opt.value.includes('hsbc') && !opt.value.includes('rbl'))
                         )
                         .map((loan, idx) => (
                           <div key={idx} style={{ color: '#856404' }}>
-                            Exclusion: <strong style={{ textTransform: 'capitalize' }}>{loan.lender}</strong> - Active loan detected with this institution
+                            Exclusion: <strong style={{ textTransform: 'capitalize' }}>{loan.lender}</strong> - Active loan detected with this partner institution
                           </div>
                         ))
                       }
                       <div style={{ marginTop: '5px', fontSize: '0.85em', fontStyle: 'italic', color: '#666' }}>
-                        These banks will not appear in your eligibility results.
+                        Fresh personal loan is restricted with an institution where you already hold an active personal loan.
                       </div>
                     </div>
                   </div>
