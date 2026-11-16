@@ -2,83 +2,67 @@
  * Overdraft (OD) Limit Calculation Service
  * 
  * Logic:
- * Same calculation logic as loan eligibility, but filters strictly to 5 institutional partners:
+ * Standard eligibility calculation engine, filtered strictly to 5 institutional partners:
  * 1. Tata Capital ('tata')
  * 2. Aditya Birla Finance / ABFL ('abfl')
  * 3. Kotak Mahindra Bank ('kotak')
  * 4. Cholamandalam Finance ('chola')
  * 5. IDFC FIRST Bank ('idfc')
  * 
- * Formats results as Overdraft Facility (interest charged only on utilized balance, zero EMI on unused limit).
+ * Formats results cleanly as standard eligibility check cards (approved amount, EMI, min ROI, tenure).
+ * Never in BT format.
  */
 
 import { calculateLoanEligibility } from './realLoanService.js';
 
 export const OD_ALLOWED_BANKS = [
-  { key: 'tata', name: 'Tata Capital' },
-  { key: 'abfl', name: 'Aditya Birla Finance' },
-  { key: 'kotak', name: 'Kotak Mahindra Bank' },
-  { key: 'chola', name: 'Cholamandalam Finance' },
-  { key: 'idfc', name: 'IDFC First Bank' }
+  { key: 'tata', name: 'Tata Capital', match: (b) => (b.bankId === 'tata' || (b.bankName || '').toLowerCase().includes('tata')) },
+  { key: 'abfl', name: 'Aditya Birla Finance', match: (b) => (b.bankId === 'abfl' || (b.bankName || '').toLowerCase().includes('aditya') || (b.bankName || '').toLowerCase().includes('abfl')) },
+  { key: 'kotak', name: 'Kotak Mahindra Bank', match: (b) => (b.bankId === 'kotak' || (b.bankName || '').toLowerCase().includes('kotak')) },
+  { key: 'chola', name: 'Cholamandalam Finance', match: (b) => (b.bankId === 'chola' || (b.bankName || '').toLowerCase().includes('chola') || (b.bankName || '').toLowerCase().includes('cholamandalam')) },
+  { key: 'idfc', name: 'IDFC First Bank', match: (b) => (b.bankId === 'idfc' || (b.bankName || '').toLowerCase().includes('idfc')) }
 ];
 
 export const calculateODLimitEligibility = async (userData) => {
   console.log('💳 === OD LIMIT SERVICE: STARTING CALCULATION ===');
   console.log('📄 Input received:', userData);
 
-  // Run calculation across the real banking engine
-  const allResults = await calculateLoanEligibility({
+  // Standard eligibility calculation (strict non-BT execution)
+  const calcUserData = {
     ...userData,
     wantsBT: false,
-    isBTMode: false
-  });
-
-  const isOdBank = (bank) => {
-    const bId = String(bank.bankId || bank.id || '').toLowerCase();
-    const bName = String(bank.bankName || '').toLowerCase();
-
-    return (
-      bId === 'tata' || bName.includes('tata') ||
-      bId === 'abfl' || bName.includes('aditya birla') || bName.includes('abfl') ||
-      bId === 'kotak' || bName.includes('kotak') ||
-      bId === 'chola' || bName.includes('chola') || bName.includes('cholamandalam') ||
-      bId === 'idfc' || bName.includes('idfc')
-    );
+    isBTMode: false,
+    selectedLoansForBT: [],
+    loansForBT: []
   };
 
-  const odRawResults = allResults.filter(isOdBank);
+  const allResults = await calculateLoanEligibility(calcUserData);
 
-  // Map to Overdraft-specific details
-  const odResults = odRawResults.map(bank => {
+  // Extract strictly the 5 partner banks in specified order
+  const odResults = [];
+
+  for (const def of OD_ALLOWED_BANKS) {
+    const bank = allResults.find(def.match);
+    if (!bank) continue;
+
     const rate = bank.interestRate || 11.25;
     const limit = bank.eligible ? Math.round(bank.loanAmount || bank.maxEligibleLoan || 0) : 0;
-
-    // Daily & Monthly interest per ₹1,00,000 withdrawn
     const dailyPerLakh = Math.round((100000 * (rate / 100)) / 365);
     const monthlyPerLakh = Math.round((100000 * (rate / 100)) / 12);
 
-    return {
+    odResults.push({
       ...bank,
+      bankId: def.key,
       isOD: true,
+      isBTMode: false,
+      btNotAllowed: false,
       productType: 'Overdraft Limit',
       odLimit: limit,
       dailyInterestPerLakh: dailyPerLakh,
-      monthlyInterestPerLakh: monthlyPerLakh,
-      odTerms: {
-        interestType: 'Simple Interest on Daily Outstanding',
-        billingCycle: 'Monthly Interest Debit',
-        drawdownSpeed: 'Instant via Mobile / Net Banking',
-        foreclosurePenalty: '0% (Nil Prepayment Charges)'
-      },
-      facilityFeatures: [
-        'Pay interest ONLY on the amount you withdraw',
-        'Zero interest on unused credit limit',
-        'Instant multi-tranche withdrawals anytime',
-        'Repay principal anytime with zero foreclosure charges'
-      ]
-    };
-  });
+      monthlyInterestPerLakh: monthlyPerLakh
+    });
+  }
 
-  console.log(`✅ OD LIMIT RESULT: ${odResults.length} bank(s) formatted.`);
+  console.log(`✅ OD LIMIT RESULT: Returned strictly ${odResults.length} of 5 banks.`);
   return odResults;
 };

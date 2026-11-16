@@ -3,14 +3,15 @@
  * 
  * Logic:
  * In top-up, customer provides existing running loan details (bank, running outstanding/POS, monthly EMI).
+ * Multiple running loans from dashboard banks can be evaluated.
  * Total Top-Up Amount = Maximum Eligible Bank Capacity (E) - Current Running Loan Balance (L).
  * Example: If customer is eligible for ₹20 Lakhs and currently ₹5 Lakhs is running, Top-Up is ₹15 Lakhs.
- * Only the bank results matching the user's running loan are displayed.
+ * ONLY the bank results matching the user's running loan(s) are returned. Absolutely NO other banks.
  */
 
 import { calculateLoanEligibility } from './realLoanService.js';
 
-export const PARTNER_TOPUP_BANKS = [
+export const DASHBOARD_BANKS = [
   { id: 'kotak', name: 'Kotak Mahindra Bank' },
   { id: 'tata', name: 'Tata Capital' },
   { id: 'hdfc', name: 'HDFC Bank' },
@@ -27,131 +28,148 @@ export const PARTNER_TOPUP_BANKS = [
   { id: 'smfg', name: 'SMFG India Credit' },
   { id: 'incred', name: 'Incred Finance' },
   { id: 'au-bank', name: 'AU Small Finance Bank' },
-  { id: 'bandhan', name: 'Bandhan Bank' },
-  { id: 'other', name: 'Other Bank / NBFC' }
+  { id: 'bandhan', name: 'Bandhan Bank' }
 ];
 
 export const calculateTopUpEligibility = async (userData) => {
   console.log('⚡ === TOP-UP SERVICE: STARTING CALCULATION ===');
   console.log('📄 Input received:', userData);
 
-  const selectedBankKey = String(userData.topUpBank || userData.existingLoanBank || '').trim().toLowerCase();
-  const runningLoanOutstanding = parseFloat(userData.topUpRunningAmount || userData.runningLoanOutstanding || userData.existingRunningAmount || 0);
-  const runningLoanEmi = parseFloat(userData.topUpRunningEMI || userData.runningLoanEmi || userData.existingRunningEMI || 0);
-
-  // In top-up with the same bank, the running loan's EMI is being topped up/consolidated.
-  // Other outside obligations (if any) remain in FOIR.
-  const outsideLoans = (userData.existingLoans || []).filter(loan => {
-    const lName = String(loan.lender || loan.bankName || '').toLowerCase();
-    return !lName.includes(selectedBankKey) && !selectedBankKey.includes(lName);
-  });
-  const outsideLoansEMI = outsideLoans.reduce((sum, l) => sum + (parseFloat(l.monthlyEMI) || parseFloat(l.emi) || 0), 0);
-
-  const calculatorUserData = {
-    ...userData,
-    existingEMI: outsideLoansEMI,
-    hasExistingLoans: outsideLoans.length > 0,
-    existingLoans: outsideLoans,
-    wantsBT: false,
-    isBTMode: false
-  };
-
-  // Run institutional calculation across banks
-  const allResults = await calculateLoanEligibility(calculatorUserData);
-
-  // Filter to the bank which the user specified
-  const isTargetBank = (bank) => {
-    if (selectedBankKey === 'other' || selectedBankKey === '') {
-      return true; // Show top institutional partners offering parallel top-up if 'Other'
-    }
-    const bId = String(bank.bankId || bank.id || '').toLowerCase();
-    const bName = String(bank.bankName || '').toLowerCase();
-
-    return (
-      bId === selectedBankKey ||
-      bName.includes(selectedBankKey) ||
-      selectedBankKey.includes(bId) ||
-      selectedBankKey.includes(bName) ||
-      (selectedBankKey.includes('kotak') && bName.includes('kotak')) ||
-      (selectedBankKey.includes('tata') && bName.includes('tata')) ||
-      (selectedBankKey.includes('hdfc') && bName.includes('hdfc')) ||
-      (selectedBankKey.includes('icici') && bName.includes('icici')) ||
-      (selectedBankKey.includes('idfc') && bName.includes('idfc')) ||
-      (selectedBankKey.includes('chola') && bName.includes('chola')) ||
-      (selectedBankKey.includes('abfl') && (bName.includes('aditya') || bName.includes('birla'))) ||
-      (selectedBankKey.includes('axis') && bName.includes('axis')) ||
-      (selectedBankKey.includes('poonawala') && bName.includes('poonawala')) ||
-      (selectedBankKey.includes('indusind') && bName.includes('indusind')) ||
-      (selectedBankKey.includes('piramal') && bName.includes('piramal')) ||
-      (selectedBankKey.includes('lnt') && bName.includes('l&t')) ||
-      (selectedBankKey.includes('smfg') && bName.includes('smfg')) ||
-      (selectedBankKey.includes('incred') && bName.includes('incred')) ||
-      (selectedBankKey.includes('au') && bName.includes('au ')) ||
-      (selectedBankKey.includes('bandhan') && bName.includes('bandhan'))
-    );
-  };
-
-  let matchingBanks = allResults.filter(isTargetBank);
-
-  // Fallback: If 'other' was selected, show top 3 banks offering top-up lines
-  if (matchingBanks.length === 0) {
-    matchingBanks = allResults.slice(0, 3);
+  // 1. Gather all running loans for top-up
+  let loans = [];
+  if (Array.isArray(userData.topUpLoans) && userData.topUpLoans.length > 0) {
+    loans = userData.topUpLoans;
+  } else if (userData.topUpBank || userData._metadata?.topUpBank) {
+    loans = [{
+      bank: userData.topUpBank || userData._metadata?.topUpBank,
+      runningAmount: parseFloat(userData.topUpRunningAmount || userData._metadata?.topUpRunningAmount || 0),
+      runningEMI: parseFloat(userData.topUpRunningEMI || userData._metadata?.topUpRunningEMI || 0),
+      tenurePassed: userData.topUpTenurePassed || '6_to_12m'
+    }];
   }
 
-  // Apply Top-Up deduction logic:
-  // Top-Up Amount = Maximum Eligible Capacity (E) - Running Loan Outstanding (L)
-  const topUpResults = matchingBanks.map(bank => {
-    if (!bank.eligible) {
-      return {
-        ...bank,
-        isTopUp: true,
-        eligible: false,
-        productType: 'Top-Up Loan',
-        totalCapacity: 0,
-        runningLoanOutstanding,
-        topUpAmount: 0,
-        reason: bank.reason || 'Not eligible under bank underwriting policy'
-      };
+  // Filter out any entries where bank is empty
+  const validLoans = loans.filter(l => l && String(l.bank || '').trim() !== '');
+
+  if (validLoans.length === 0) {
+    console.warn('⚠️ No valid top-up loans provided.');
+    return [];
+  }
+
+  const topUpResults = [];
+
+  // 2. Evaluate top-up for each bank the user specified
+  for (const loan of validLoans) {
+    const rawBankName = String(loan.bank || '').trim();
+    const runningLoanOutstanding = parseFloat(loan.runningAmount || 0);
+    const runningLoanEMI = parseFloat(loan.runningEMI || 0);
+
+    // Other loans outside this specific bank count as external monthly EMI obligations
+    const outsideLoans = validLoans.filter(l => l !== loan);
+    const outsideLoansEMI = outsideLoans.reduce((sum, l) => sum + (parseFloat(l.runningEMI) || 0), 0);
+
+    const calcUserData = {
+      ...userData,
+      hasExistingLoans: outsideLoansEMI > 0,
+      existingEMI: outsideLoansEMI,
+      existingLoans: outsideLoans.map((l, idx) => ({
+        id: `outside_${idx}`,
+        lender: l.bank,
+        monthlyEMI: l.runningEMI,
+        outstandingAmount: l.runningAmount
+      })),
+      hasCreditCards: false,
+      creditCards: [],
+      wantsBT: false,
+      isBTMode: false
+    };
+
+    // Run the institutional bank calculation
+    const allResults = await calculateLoanEligibility(calcUserData);
+
+    // Match strictly to this bank
+    const match = allResults.find(b => {
+      const bId = String(b.bankId || b.id || '').toLowerCase();
+      const bName = String(b.bankName || '').toLowerCase();
+      const target = rawBankName.toLowerCase();
+
+      return (
+        bName === target ||
+        bId === target ||
+        bName.includes(target) ||
+        target.includes(bName) ||
+        (target.includes('kotak') && bName.includes('kotak')) ||
+        (target.includes('tata') && bName.includes('tata')) ||
+        (target.includes('hdfc') && bName.includes('hdfc')) ||
+        (target.includes('icici') && bName.includes('icici')) ||
+        (target.includes('idfc') && bName.includes('idfc')) ||
+        (target.includes('chola') && bName.includes('chola')) ||
+        (target.includes('aditya') && (bName.includes('aditya') || bName.includes('birla') || bName.includes('abfl'))) ||
+        (target.includes('abfl') && (bName.includes('aditya') || bName.includes('birla') || bName.includes('abfl'))) ||
+        (target.includes('axis') && !target.includes('finance') && bName === 'axis bank') ||
+        (target.includes('axis finance') && bName.includes('finance')) ||
+        (target.includes('poonawala') && bName.includes('poonawala')) ||
+        (target.includes('indusind') && bName.includes('indusind')) ||
+        (target.includes('piramal') && bName.includes('piramal')) ||
+        (target.includes('l&t') && bName.includes('l&t')) ||
+        (target.includes('smfg') && bName.includes('smfg')) ||
+        (target.includes('incred') && bName.includes('incred')) ||
+        (target.includes('au ') && bName.includes('au ')) ||
+        (target.includes('bandhan') && bName.includes('bandhan'))
+      );
+    });
+
+    if (!match) {
+      console.warn(`Bank "${rawBankName}" not found in calculation engine.`);
+      continue;
     }
 
-    const totalEligibleCapacity = Math.round(bank.loanAmount || bank.maxEligibleLoan || 0);
+    if (!match.eligible) {
+      topUpResults.push({
+        ...match,
+        isTopUp: true,
+        productType: 'Top-Up Loan',
+        eligible: false,
+        totalCapacity: 0,
+        runningLoanOutstanding,
+        runningLoanEMI,
+        loanAmount: 0,
+        reason: match.reason || 'Underwriting criteria mismatch for top-up'
+      });
+      continue;
+    }
+
+    // Top-Up Amount = Bank Capacity (E) - Running Loan Balance (L)
+    const totalEligibleCapacity = Math.round(match.loanAmount || match.maxEligibleLoan || 0);
     const netTopUpAmount = Math.max(0, totalEligibleCapacity - runningLoanOutstanding);
     const isTopUpEligible = netTopUpAmount > 0;
 
-    // Monthly EMI on net top-up amount
-    const rate = bank.interestRate || 11.5;
-    const tenureYears = bank.loanTenure || 5;
-    const monthlyRate = rate / 12 / 100;
+    const rate = match.interestRate || 10.75;
+    const tenureYears = match.loanTenure || 5;
     const tenureMonths = tenureYears * 12;
-    const topUpEmi = netTopUpAmount > 0 && monthlyRate > 0
+    const monthlyRate = rate / 12 / 100;
+    const topUpEMI = isTopUpEligible && monthlyRate > 0
       ? Math.round((netTopUpAmount * monthlyRate * Math.pow(1 + monthlyRate, tenureMonths)) / (Math.pow(1 + monthlyRate, tenureMonths) - 1))
       : 0;
 
-    return {
-      ...bank,
+    topUpResults.push({
+      ...match,
       isTopUp: true,
-      productType: 'Top-Up Loan',
       eligible: isTopUpEligible,
-      loanAmount: netTopUpAmount, // Disbursed Top-Up Cash in Hand
-      topUpAmount: netTopUpAmount,
+      productType: 'Top-Up Loan',
       totalCapacity: totalEligibleCapacity,
-      runningLoanOutstanding: runningLoanOutstanding,
-      runningLoanEmi: runningLoanEmi,
-      monthlyEMI: topUpEmi,
+      runningLoanOutstanding,
+      runningLoanEMI,
+      loanAmount: netTopUpAmount,
+      monthlyEMI: topUpEMI,
       interestRate: rate,
       loanTenure: tenureYears,
       reason: isTopUpEligible
         ? null
-        : `Current running loan (₹${runningLoanOutstanding.toLocaleString('en-IN')}) meets or exceeds maximum eligible ceiling (₹${totalEligibleCapacity.toLocaleString('en-IN')}) with ${bank.bankName}.`,
-      topUpHighlights: [
-        `₹${netTopUpAmount.toLocaleString('en-IN')} Instant Cash Disbursal`,
-        `Existing ₹${runningLoanOutstanding.toLocaleString('en-IN')} Loan Retained / Integrated`,
-        `Low Interest Rate starting @ ${rate}% p.a.`,
-        'Minimal Documentation & Fast Track Approval'
-      ]
-    };
-  });
+        : `Current running loan balance (₹${runningLoanOutstanding.toLocaleString('en-IN')}) equals or exceeds your total bank capacity ceiling (₹${totalEligibleCapacity.toLocaleString('en-IN')}) with ${match.bankName}.`
+    });
+  }
 
-  console.log(`✅ TOP-UP RESULT: ${topUpResults.length} bank(s) formatted.`);
+  console.log(`✅ TOP-UP RESULT: Returned strictly ${topUpResults.length} bank(s) matching user loans.`);
   return topUpResults;
 };

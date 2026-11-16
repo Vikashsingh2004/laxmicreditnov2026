@@ -52,6 +52,13 @@ function CustomerFacingApp() {
     setError(null);
     setResults(null);
 
+    const currentMode = 
+      submissionData?.mode || 
+      submissionData?.productMode || 
+      rawFormData?.mode || 
+      rawFormData?.productMode || 
+      (location.pathname === '/top-up-loan' ? 'topup' : (location.pathname === '/od-limit' ? 'od' : 'pl'));
+
     const hasActiveLoans = Boolean(submissionData?.hasExistingLoans ?? rawFormData?.hasExistingLoans);
     const hasActiveCards = Boolean(submissionData?.hasCreditCards ?? rawFormData?.hasCreditCards);
 
@@ -60,6 +67,8 @@ function CustomerFacingApp() {
       ...(rawFormData || {}),
       ...(submissionData || {}),
       ...(submissionData?._metadata || {}),
+      mode: currentMode,
+      productMode: currentMode,
       customerName: rawFormData?.customerName || submissionData?.customerName || submissionData?._metadata?.customerName || 'Customer',
       mobileNumber: rawFormData?.mobileNumber || submissionData?.mobileNumber || submissionData?._metadata?.mobileNumber || '',
       companyName: rawFormData?.companyName || submissionData?.companyName || submissionData?._metadata?.companyName || 'LaxmiCredit',
@@ -123,15 +132,13 @@ function CustomerFacingApp() {
             ...(submissionData.creditCards || []).map(c => ({ ...c, type: 'Credit Card', outstandingAmount: parseFloat(c.creditLimitUsed || 0) }))
           ];
 
-      const currentMode = submissionData?.mode || rawFormData?.mode || 'pl';
-
       if (currentMode === 'topup') {
-        console.log('⚡ TOP-UP LOAN CALCULATION FOR BANK:', submissionData.topUpBank);
+        console.log('⚡ TOP-UP LOAN CALCULATION');
         calculationResults = await calculateTopUpEligibility(submissionData);
       } else if (currentMode === 'od') {
-        console.log('⚡ OVERDRAFT (OD) LIMIT CALCULATION');
+        console.log('⚡ OVERDRAFT (OD) LIMIT CALCULATION (5 PARTNER BANKS ONLY)');
         calculationResults = await calculateODLimitEligibility(submissionData);
-      } else if (hasLoansForBT && effectiveBtLoans.length > 0) {
+      } else if (currentMode === 'pl' && hasLoansForBT && effectiveBtLoans.length > 0) {
         console.log('🔄 BT MODE DETECTED!');
         const fullBtSubmission = {
           ...submissionData,

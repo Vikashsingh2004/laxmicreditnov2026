@@ -720,24 +720,20 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
             </span>
           </div>
 
-          <p style={{
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            fontSize: '1.02rem',
-            color: 'rgb(66, 66, 66)',
-            lineHeight: '1.6',
-            maxWidth: '750px',
-            margin: '12px auto 0',
-            fontWeight: 500,
-            textWrap: 'balance'
-          }}>
-            {isTopUpMode ? (
-              `Top-up eligibility calculated under bank underwriting policy by comparing total credit capacity against your current loan balance (E - L).`
-            ) : isODMode ? (
-              `Pre-approved Overdraft limits across our 5 institutional partners: Tata Capital, ABFL, Kotak Mahindra Bank, Cholamandalam, and IDFC FIRST Bank.`
-            ) : (
-              `Verified assessment results across ${results.length} banking institutions with zero impact on CIBIL score.`
-            )}
-          </p>
+          {!isTopUpMode && !isODMode && (
+            <p style={{
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              fontSize: '1.02rem',
+              color: 'rgb(66, 66, 66)',
+              lineHeight: '1.6',
+              maxWidth: '750px',
+              margin: '12px auto 0',
+              fontWeight: 500,
+              textWrap: 'balance'
+            }}>
+              Verified assessment results across {results.length} banking institutions with zero impact on CIBIL score.
+            </p>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '20px' }}>
             <button 
               className="btn-download-pdf" 
@@ -913,26 +909,6 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
               </div>
             </div>
           </>
-        ) : bestOffer && isODMode ? (
-          <>
-            <div className="stat-card highlight" style={{ background: '#ECFDF5', border: '2px solid #059669', padding: '22px 18px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 6px 20px rgba(5, 150, 105, 0.12)' }}>
-              <div className="stat-value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.85rem', fontWeight: 800, color: '#059669', marginBottom: '8px' }}>
-                {formatCurrency(bestOffer.odLimit || bestOffer.loanAmount)}
-              </div>
-              <div className="stat-label" style={{ fontSize: '0.82rem', color: '#065F46', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 1, display: 'block' }}>
-                Highest Sanctioned OD Limit
-              </div>
-            </div>
-
-            <div className="stat-card" style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', padding: '22px 18px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-              <div className="stat-value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.85rem', fontWeight: 800, color: '#0D9488', marginBottom: '8px' }}>
-                ₹{bestOffer.dailyInterestPerLakh || Math.round((100000 * ((bestOffer.interestRate || 11.25) / 100)) / 365)}/day
-              </div>
-              <div className="stat-label" style={{ fontSize: '0.82rem', color: '#134E4A', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 1, display: 'block' }}>
-                Daily Cost per ₹1L Used
-              </div>
-            </div>
-          </>
         ) : bestOffer ? (
           <>
             <div className="stat-card highlight" style={{ background: '#FFF4EC', border: '2px solid #f58220', padding: '22px 18px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 6px 20px rgba(245, 130, 32, 0.12)' }}>
@@ -1016,10 +992,10 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
               </div>
               <div className="detail-item">
                 <span className="label" style={{ fontSize: '0.8rem', color: 'rgb(66, 66, 66)', marginBottom: '4px', fontWeight: 650, textTransform: 'uppercase', display: 'block' }}>
-                  {isODMode ? 'Prepayment Penalty' : 'Loan Tenure'}
+                  Loan Tenure
                 </span>
                 <span className="value" style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: '#1E40AF', display: 'block' }}>
-                  {isODMode ? '0% (Nil Prepayment Penalty)' : `${bestOffer.loanTenure} years`}
+                  {bestOffer.loanTenure} years
                 </span>
               </div>
             </div>
@@ -1030,11 +1006,6 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                 <span><strong>Current Running Loan (L):</strong> - {formatCurrency(bestOffer.runningLoanOutstanding)}</span>
                 <span>•</span>
                 <span><strong>Net Disbursal (E - L):</strong> {formatCurrency(bestOffer.topUpAmount || bestOffer.loanAmount)}</span>
-              </div>
-            )}
-            {isODMode && (
-              <div style={{ marginTop: '16px', padding: '12px 16px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #A7F3D0', fontSize: '0.88rem', color: '#065F46' }}>
-                ⚡ <strong>Flexi Overdraft Facility:</strong> Pay interest ONLY on the exact amount and days used. Unused credit limit incurs ₹0 interest.
               </div>
             )}
             {bestOffer.calculationMethod && (
@@ -1191,7 +1162,7 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                         )}
 
                         {/* BT MODE DISPLAY */}
-                        {(bank.isBTMode || bank.btType?.includes('BT') || bank.calculationMethod?.includes('BT')) ? (
+                        {(!isODMode && (bank.isBTMode || bank.btType?.includes('BT') || bank.calculationMethod?.includes('BT'))) ? (
                           <div className="bt-mode-display" style={{ background: '#EEF3FA', border: '1px solid #BFDBFE', padding: '14px 16px', borderRadius: '10px', marginBottom: '16px' }}>
                             <div className="bt-badge" style={{ fontSize: '0.75rem', fontWeight: 750, color: '#1E40AF', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Liability Consolidation</div>
                             <div className="bt-breakdown" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1227,17 +1198,6 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                                 <span>Approved Top-Up Disbursal</span>
                                 <span>{formatCurrency(bank.loanAmount)}</span>
                               </div>
-                            </div>
-                          </div>
-                        ) : bank.isOD ? (
-                          <div className="od-mode-display" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', padding: '14px 16px', borderRadius: '10px', marginBottom: '16px' }}>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 750, color: '#6D28D9', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sanctioned Overdraft Limit</div>
-                            <div className="main-amount" style={{ marginBottom: '8px' }}>
-                              <span className="label" style={{ color: '#6D28D9' }}>Overdraft Credit Line</span>
-                              <span className="amount" style={{ color: '#5B21B6' }}>{formatCurrency(bank.loanAmount)}</span>
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: '#5B21B6', background: 'rgba(255,255,255,0.7)', padding: '6px 10px', borderRadius: '6px', fontWeight: 600 }}>
-                              Daily Interest: ~₹{bank.dailyInterestPerLakh}/day per ₹1 Lakh utilized
                             </div>
                           </div>
                         ) : (
@@ -1346,21 +1306,21 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                   <div className="details-grid">
                     <div className="detail">
                       <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>
-                        {bank.isOD ? 'DAILY PER ₹1L' : bank.isTopUp ? 'TOP-UP EMI' : 'EMI'}
+                        {bank.isTopUp ? 'TOP-UP EMI' : 'EMI'}
                       </span>
                       <span className="detail-value" style={{ color: '#1E40AF' }}>
-                        {bank.isOD ? `₹${bank.dailyInterestPerLakh}` : formatNumber(bank.monthlyEMI)}
+                        {formatNumber(bank.monthlyEMI)}
                       </span>
                     </div>
                     <div className="detail">
                       <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>
-                        {bank.isOD ? 'OD ROI' : 'MIN ROI'}
+                        MIN ROI
                       </span>
                       <span className="detail-value" style={{ color: '#F58220' }}>{bank.interestRate}%</span>
                     </div>
                     <div className="detail">
                       <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>
-                        {bank.isOD ? 'LINE TENURE' : 'MAX TENURE'}
+                        MAX TENURE
                       </span>
                       <span className="detail-value" style={{ color: 'rgb(66, 66, 66)' }}>{bank.loanTenure}Y</span>
                     </div>

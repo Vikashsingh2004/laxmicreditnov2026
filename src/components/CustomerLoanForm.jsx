@@ -28,6 +28,26 @@ export const LENDER_OPTIONS = [
   { value: "other", label: "Other Bank / NBFC (Not Listed)" }
 ];
 
+export const DASHBOARD_TOPUP_BANKS = [
+  { value: "Kotak Mahindra Bank", label: "Kotak Mahindra Bank" },
+  { value: "Tata Capital", label: "Tata Capital" },
+  { value: "HDFC Bank", label: "HDFC Bank" },
+  { value: "ICICI Bank", label: "ICICI Bank" },
+  { value: "IDFC First Bank", label: "IDFC First Bank" },
+  { value: "Cholamandalam Finance", label: "Cholamandalam Finance (Chola)" },
+  { value: "Aditya Birla Finance", label: "Aditya Birla Finance (ABFL)" },
+  { value: "Axis Bank", label: "Axis Bank" },
+  { value: "Axis Finance", label: "Axis Finance" },
+  { value: "Poonawala Finance", label: "Poonawalla Fincorp" },
+  { value: "IndusInd Bank", label: "IndusInd Bank" },
+  { value: "Piramal Finance", label: "Piramal Finance" },
+  { value: "L&T Finance", label: "L&T Finance" },
+  { value: "SMFG India Credit", label: "SMFG India Credit" },
+  { value: "Incred Finance", label: "Incred Finance" },
+  { value: "AU Small Finance Bank", label: "AU Small Finance Bank" },
+  { value: "Bandhan Bank", label: "Bandhan Bank" }
+];
+
 const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode = 'pl' }) => {
   const [formData, setFormData] = useState(() => {
     let saved = null;
@@ -93,6 +113,17 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
       topUpRunningAmount: saved?.topUpRunningAmount || '',
       topUpRunningEMI: saved?.topUpRunningEMI || '',
       topUpTenurePassed: saved?.topUpTenurePassed || '6_to_12m',
+      topUpLoans: (saved?.topUpLoans && saved.topUpLoans.length > 0)
+        ? saved.topUpLoans
+        : [
+            {
+              id: '1',
+              bank: saved?.topUpBank || '',
+              runningAmount: saved?.topUpRunningAmount || '',
+              runningEMI: saved?.topUpRunningEMI || '',
+              tenurePassed: saved?.topUpTenurePassed || '6_to_12m'
+            }
+          ],
       state: saved?.state || '',
       city: saved?.city || '',
       maritalStatus: saved?.maritalStatus || '',
@@ -337,6 +368,45 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
     });
   };
 
+  const handleAddTopUpLoan = () => {
+    setFormData(prev => ({
+      ...prev,
+      topUpLoans: [
+        ...(prev.topUpLoans || []),
+        {
+          id: Date.now().toString(),
+          bank: '',
+          runningAmount: '',
+          runningEMI: '',
+          tenurePassed: '6_to_12m'
+        }
+      ]
+    }));
+  };
+
+  const handleRemoveTopUpLoan = (loanId) => {
+    setFormData(prev => ({
+      ...prev,
+      topUpLoans: (prev.topUpLoans || []).filter(l => l.id !== loanId)
+    }));
+  };
+
+  const handleTopUpLoanChange = (loanId, field, value) => {
+    let cleanVal = value;
+    if (field === 'runningAmount' || field === 'runningEMI') {
+      cleanVal = value.replace(/[^0-9]/g, '');
+    }
+    setFormData(prev => ({
+      ...prev,
+      topUpLoans: (prev.topUpLoans || []).map(l => {
+        if (l.id === loanId) {
+          return { ...l, [field]: cleanVal };
+        }
+        return l;
+      })
+    }));
+  };
+
   const hasBTObligations = (formData.hasExistingLoans && formData.existingLoans?.length > 0) ||
     (formData.hasCreditCards && formData.creditCards?.length > 0);
   const isBTSelectionPending = mode === 'pl' && hasBTObligations && Boolean(formData.wantsBT) && (!formData.selectedLoansForBT || formData.selectedLoansForBT.length === 0);
@@ -355,16 +425,22 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
 
     // ── Guard: Top-Up specific validations ─────────────────────────────────
     if (mode === 'topup') {
-      if (!formData.topUpBank) {
-        setValidationError('Please select the bank where your existing loan is currently active.');
-        document.getElementById('topUpBank')?.focus();
+      const tLoans = formData.topUpLoans || [];
+      if (tLoans.length === 0) {
+        setValidationError('Please add at least one existing running loan for top-up.');
         return;
       }
-      const runningAmt = parseFloat(formData.topUpRunningAmount) || 0;
-      if (runningAmt <= 0) {
-        setValidationError('Please enter your current running loan balance/outstanding amount.');
-        document.getElementById('topUpRunningAmount')?.focus();
-        return;
+      for (let i = 0; i < tLoans.length; i++) {
+        const l = tLoans[i];
+        if (!l.bank) {
+          setValidationError(`Please select the bank for Running Loan ${i + 1}.`);
+          return;
+        }
+        const runningAmt = parseFloat(l.runningAmount) || 0;
+        if (runningAmt <= 0) {
+          setValidationError(`Please enter your current running loan balance / POS for Running Loan ${i + 1}.`);
+          return;
+        }
       }
     }
 
@@ -565,19 +641,29 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
       workExperienceMonths: formData.workExperience === 'below_3m' ? 2 : (formData.workExperience === '3m_to_24m' ? 12 : 25),
       totalWorkExperience: formData.workExperience === 'below_3m' ? 2 : (formData.workExperience === '3m_to_24m' ? 12 : 25),
       currentCompanyExperience: formData.workExperience === 'below_3m' ? 2 : (formData.workExperience === '3m_to_24m' ? 12 : 25),
+      mode,
       productMode: mode,
-      topUpBank: formData.topUpBank,
-      topUpRunningAmount: parseFloat(formData.topUpRunningAmount || 0),
-      topUpRunningEMI: parseFloat(formData.topUpRunningEMI || 0),
-      topUpTenurePassed: formData.topUpTenurePassed || '6_to_12m',
+      topUpLoans: (formData.topUpLoans || []).map(l => ({
+        id: l.id,
+        bank: l.bank,
+        runningAmount: parseFloat(l.runningAmount) || 0,
+        runningEMI: parseFloat(l.runningEMI) || 0,
+        tenurePassed: l.tenurePassed || '6_to_12m'
+      })),
+      topUpBank: formData.topUpLoans?.[0]?.bank || formData.topUpBank,
+      topUpRunningAmount: parseFloat(formData.topUpLoans?.[0]?.runningAmount || formData.topUpRunningAmount || 0),
+      topUpRunningEMI: parseFloat(formData.topUpLoans?.[0]?.runningEMI || formData.topUpRunningEMI || 0),
+      topUpTenurePassed: formData.topUpLoans?.[0]?.tenurePassed || formData.topUpTenurePassed || '6_to_12m',
 
       // Additional data for display purposes
       _metadata: {
+        mode,
         productMode: mode,
-        topUpBank: formData.topUpBank,
-        topUpRunningAmount: parseFloat(formData.topUpRunningAmount || 0),
-        topUpRunningEMI: parseFloat(formData.topUpRunningEMI || 0),
-        topUpTenurePassed: formData.topUpTenurePassed || '6_to_12m',
+        topUpLoans: formData.topUpLoans || [],
+        topUpBank: formData.topUpLoans?.[0]?.bank || formData.topUpBank,
+        topUpRunningAmount: parseFloat(formData.topUpLoans?.[0]?.runningAmount || formData.topUpRunningAmount || 0),
+        topUpRunningEMI: parseFloat(formData.topUpLoans?.[0]?.runningEMI || formData.topUpRunningEMI || 0),
+        topUpTenurePassed: formData.topUpLoans?.[0]?.tenurePassed || formData.topUpTenurePassed || '6_to_12m',
         customerName: formData.customerName,
         mobileNumber: formData.mobileNumber,
         companyName: formData.companyName,
@@ -613,7 +699,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
     };
 
     // Pass submissionData to loan engine AND raw formData to lead service
-    onSubmit(submissionData, formData);
+    onSubmit(submissionData, { ...formData, mode, productMode: mode });
   };
 
   return (
@@ -643,63 +729,12 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
           borderRadius: '2px',
           margin: '0 auto 12px'
         }} />
-        <p>
-          {mode === 'topup' ? (
-            'Enter your details and existing running loan parameters to calculate your instant net cash top-up limit with zero bureau inquiry.'
-          ) : mode === 'od' ? (
-            'Calculate your pre-approved Overdraft credit lines across 5 leading institutions: Tata Capital, ABFL, Kotak Mahindra Bank, Cholamandalam, and IDFC FIRST Bank.'
-          ) : (
-            'Enter your details to discover instant pre-approved personal loan offers tailored to your profile with zero impact on CIBIL score.'
-          )}
-        </p>
+        {mode === 'pl' && (
+          <p>
+            Enter your details to discover instant pre-approved personal loan offers tailored to your profile with zero impact on CIBIL score.
+          </p>
+        )}
       </div>
-
-      {/* Mode-specific Banner */}
-      {mode === 'topup' && (
-        <div style={{
-          width: '100%',
-          padding: '14px 20px',
-          marginBottom: '20px',
-          background: '#EFF6FF',
-          border: '1.5px solid #93C5FD',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          color: '#1E40AF'
-        }}>
-          <span style={{ fontSize: '1.6rem' }}>⚡</span>
-          <div>
-            <strong style={{ fontSize: '1rem', display: 'block' }}>Loan Top-Up Calculator ($E - L$ Formula)</strong>
-            <span style={{ fontSize: '0.88rem', color: '#1E3A8A' }}>
-              We evaluate your bank's total sanction ceiling and subtract your running loan balance ($E - L$). The net cash difference is your disbursed top-up amount!
-            </span>
-          </div>
-        </div>
-      )}
-
-      {mode === 'od' && (
-        <div style={{
-          width: '100%',
-          padding: '14px 20px',
-          marginBottom: '20px',
-          background: '#ECFDF5',
-          border: '1.5px solid #6EE7B7',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          color: '#065F46'
-        }}>
-          <span style={{ fontSize: '1.6rem' }}>💳</span>
-          <div>
-            <strong style={{ fontSize: '1rem', display: 'block' }}>Institutional Overdraft (OD) Facility</strong>
-            <span style={{ fontSize: '0.88rem', color: '#047857' }}>
-              Assessing approved limits across <strong>Tata Capital, Aditya Birla Finance, Kotak Mahindra Bank, Cholamandalam, and IDFC FIRST Bank</strong>. Pay interest ONLY when you withdraw funds.
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Personal Details */}
       <div className="form-section">
@@ -1239,123 +1274,154 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
         </div>
       </div>
 
-      {/* Top-Up Running Loan Section (Top-Up Mode Only) */}
+      {/* Top-Up Running Loans Section (Top-Up Mode Only) */}
       {mode === 'topup' && (
         <div className="form-section" style={{ background: '#F0F9FF', borderLeft: '4px solid #0284C7', borderRadius: '12px', padding: '24px' }}>
-          <h3 style={{ color: '#0369A1', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>⚡</span> Existing Running Loan for Top-Up
-          </h3>
-          <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '18px', lineHeight: '1.5' }}>
-            Provide details of the running personal loan on which you want to calculate your additional top-up limit. Your top-up is computed as <strong>Total Bank Eligibility Capacity ($E$) minus Current Running Loan Balance ($L$)</strong>.
-          </p>
-
-          <div className="form-row-two">
-            <div className="form-group">
-              <label htmlFor="topUpBank" style={{ fontWeight: 700, color: '#1E293B' }}>
-                Bank / Lender of Running Loan <span className="required">*</span>
-              </label>
-              <select
-                id="topUpBank"
-                name="topUpBank"
-                value={formData.topUpBank || ''}
-                onChange={handleInputChange}
-                required
-                style={{
-                  fontWeight: 600,
-                  color: '#1E293B',
-                  backgroundColor: '#FFFFFF',
-                  border: '1.5px solid #CBD5E1',
-                  borderRadius: '8px',
-                  padding: '12px 14px'
-                }}
-              >
-                <option value="">-- Select Your Existing Bank --</option>
-                <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
-                <option value="Tata Capital">Tata Capital</option>
-                <option value="HDFC Bank">HDFC Bank</option>
-                <option value="ICICI Bank">ICICI Bank</option>
-                <option value="IDFC First Bank">IDFC FIRST Bank</option>
-                <option value="Cholamandalam Finance">Cholamandalam Finance (Chola)</option>
-                <option value="Aditya Birla Finance">Aditya Birla Finance (ABFL)</option>
-                <option value="Axis Bank">Axis Bank</option>
-                <option value="Axis Finance">Axis Finance</option>
-                <option value="Poonawala Finance">Poonawalla Fincorp</option>
-                <option value="IndusInd Bank">IndusInd Bank</option>
-                <option value="Piramal Finance">Piramal Finance</option>
-                <option value="L&T Finance">L&T Finance</option>
-                <option value="SMFG India Credit">SMFG India Credit</option>
-                <option value="Incred Finance">Incred Finance</option>
-                <option value="AU Small Finance Bank">AU Small Finance Bank</option>
-                <option value="Bandhan Bank">Bandhan Bank</option>
-                <option value="other">Other Bank / NBFC</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="topUpRunningAmount" style={{ fontWeight: 700, color: '#1E293B' }}>
-                Current Running Loan Balance / POS (₹) <span className="required">*</span>
-              </label>
-              <input
-                type="text"
-                id="topUpRunningAmount"
-                name="topUpRunningAmount"
-                value={formData.topUpRunningAmount || ''}
-                onChange={handleInputChange}
-                placeholder="e.g. 500000"
-                required
-                inputMode="numeric"
-                style={{ fontWeight: 600, color: '#1E293B', backgroundColor: '#FFFFFF' }}
-              />
-              <small className="help-text">Outstanding principal remaining on this loan</small>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ color: '#0369A1', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>⚡</span> Existing Running Loans for Top-Up
+            </h3>
+            <button
+              type="button"
+              className="btn-add-loan"
+              onClick={handleAddTopUpLoan}
+              style={{
+                background: '#0284C7',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '8px 16px',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer'
+              }}
+            >
+              + Add Another Loan
+            </button>
           </div>
 
-          <div className="form-row-two" style={{ marginTop: '12px' }}>
-            <div className="form-group">
-              <label htmlFor="topUpRunningEMI" style={{ fontWeight: 700, color: '#1E293B' }}>
-                Current Monthly EMI (₹) <span className="required">*</span>
-              </label>
-              <input
-                type="text"
-                id="topUpRunningEMI"
-                name="topUpRunningEMI"
-                value={formData.topUpRunningEMI || ''}
-                onChange={handleInputChange}
-                placeholder="e.g. 14000"
-                required
-                inputMode="numeric"
-                style={{ fontWeight: 600, color: '#1E293B', backgroundColor: '#FFFFFF' }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="topUpTenurePassed" style={{ fontWeight: 700, color: '#1E293B' }}>
-                Tenure Paid / Vintage
-              </label>
-              <select
-                id="topUpTenurePassed"
-                name="topUpTenurePassed"
-                value={formData.topUpTenurePassed || '6_to_12m'}
-                onChange={handleInputChange}
-                style={{
-                  fontWeight: 600,
-                  color: '#1E293B',
-                  backgroundColor: '#FFFFFF',
-                  border: '1.5px solid #CBD5E1',
-                  borderRadius: '8px',
-                  padding: '12px 14px'
+          <div className="existing-topup-loans-list">
+            {(formData.topUpLoans || []).map((loan, index) => (
+              <div 
+                key={loan.id} 
+                style={{ 
+                  background: '#FFFFFF', 
+                  border: '1.5px solid #CBD5E1', 
+                  borderRadius: '10px', 
+                  padding: '18px 20px', 
+                  marginBottom: '16px' 
                 }}
               >
-                <option value="below_6m">Less than 6 EMIs Paid</option>
-                <option value="6_to_12m">6 to 12 EMIs Paid (Eligible for Standard Top-Up)</option>
-                <option value="above_12m">12+ EMIs Paid (Eligible for Lowest Interest Top-Up)</option>
-              </select>
-            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
+                  <span style={{ fontWeight: 800, color: '#1E293B', fontSize: '0.95rem' }}>
+                    Running Loan {index + 1}
+                  </span>
+                  {(formData.topUpLoans || []).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTopUpLoan(loan.id)}
+                      style={{
+                        background: '#FEE2E2',
+                        color: '#B91C1C',
+                        border: '1px solid #FCA5A5',
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✕ Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="form-row-two">
+                  <div className="form-group">
+                    <label style={{ fontWeight: 700, color: '#1E293B' }}>
+                      Bank / Lender <span className="required">*</span>
+                    </label>
+                    <select
+                      value={loan.bank || ''}
+                      onChange={(e) => handleTopUpLoanChange(loan.id, 'bank', e.target.value)}
+                      required
+                      style={{
+                        fontWeight: 600,
+                        color: '#1E293B',
+                        backgroundColor: '#FFFFFF',
+                        border: '1.5px solid #CBD5E1',
+                        borderRadius: '8px',
+                        padding: '12px 14px'
+                      }}
+                    >
+                      <option value="">-- Select Bank from Dashboard --</option>
+                      {DASHBOARD_TOPUP_BANKS.map(b => (
+                        <option key={b.value} value={b.value}>{b.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label style={{ fontWeight: 700, color: '#1E293B' }}>
+                      Current Running Loan Balance / POS (₹) <span className="required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={loan.runningAmount || ''}
+                      onChange={(e) => handleTopUpLoanChange(loan.id, 'runningAmount', e.target.value)}
+                      placeholder="e.g. 500000"
+                      required
+                      inputMode="numeric"
+                      style={{ fontWeight: 600, color: '#1E293B', backgroundColor: '#FFFFFF' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row-two" style={{ marginTop: '12px' }}>
+                  <div className="form-group">
+                    <label style={{ fontWeight: 700, color: '#1E293B' }}>
+                      Current Monthly EMI (₹)
+                    </label>
+                    <input
+                      type="text"
+                      value={loan.runningEMI || ''}
+                      onChange={(e) => handleTopUpLoanChange(loan.id, 'runningEMI', e.target.value)}
+                      placeholder="e.g. 14000"
+                      inputMode="numeric"
+                      style={{ fontWeight: 600, color: '#1E293B', backgroundColor: '#FFFFFF' }}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label style={{ fontWeight: 700, color: '#1E293B' }}>
+                      Tenure Paid / Vintage
+                    </label>
+                    <select
+                      value={loan.tenurePassed || '6_to_12m'}
+                      onChange={(e) => handleTopUpLoanChange(loan.id, 'tenurePassed', e.target.value)}
+                      style={{
+                        fontWeight: 600,
+                        color: '#1E293B',
+                        backgroundColor: '#FFFFFF',
+                        border: '1.5px solid #CBD5E1',
+                        borderRadius: '8px',
+                        padding: '12px 14px'
+                      }}
+                    >
+                      <option value="below_6m">Less than 6 EMIs Paid</option>
+                      <option value="6_to_12m">6 to 12 EMIs Paid</option>
+                      <option value="above_12m">12+ EMIs Paid</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Existing Loans and Credit Cards */}
+      {/* Existing Loans and Credit Cards (PL and OD Mode Only) */}
+      {mode !== 'topup' && (
       <div className="form-section">
         <h3>{mode === 'topup' ? 'Any Other Obligations & Liabilities (Optional)' : 'Financial Commitments'}</h3>
 
@@ -1593,6 +1659,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
           </div>
         )}
       </div>
+      )}
 
       {/* Balance Transfer Section */}
       {
