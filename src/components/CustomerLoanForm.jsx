@@ -204,14 +204,10 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
     }
 
     if (name === 'wantsBT') {
-      const allIds = checked ? [
-        ...(formData.hasExistingLoans && Array.isArray(formData.existingLoans) ? formData.existingLoans.map(l => l.id) : []),
-        ...(formData.hasCreditCards && Array.isArray(formData.creditCards) ? formData.creditCards.map(c => c.id) : [])
-      ] : [];
       setFormData(prev => ({
         ...prev,
         wantsBT: checked,
-        selectedLoansForBT: checked ? (prev.selectedLoansForBT.length > 0 ? prev.selectedLoansForBT : allIds) : []
+        selectedLoansForBT: []
       }));
       return;
     }
@@ -337,11 +333,21 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
     });
   };
 
+  const hasBTObligations = (formData.hasExistingLoans && formData.existingLoans?.length > 0) ||
+    (formData.hasCreditCards && formData.creditCards?.length > 0);
+  const isBTSelectionPending = hasBTObligations && Boolean(formData.wantsBT) && (!formData.selectedLoansForBT || formData.selectedLoansForBT.length === 0);
+
   const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setValidationError('');
+
+    // ── Guard: BT Selection Required if user chose Balance Transfer ─────────
+    if (isBTSelectionPending) {
+      setValidationError('Please select at least one loan or credit card for Balance Transfer, or uncheck "Yes, I want to do Balance Transfer".');
+      return;
+    }
 
     // ── Guard: Name & Mobile required ──────────────────────────────────────
     if (!formData.customerName.trim()) {
@@ -1537,8 +1543,23 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
                 )}
 
                 {formData.selectedLoansForBT.length === 0 && (
-                  <div style={{ marginTop: '15px', padding: '12px', background: '#fff3cd', borderRadius: '6px', fontSize: '0.9em', color: '#856404' }}>
-                    ⚠️ Please select at least one loan or credit card for Balance Transfer
+                  <div style={{
+                    marginTop: '15px',
+                    padding: '12px 16px',
+                    background: '#FEF2F2',
+                    borderRadius: '8px',
+                    border: '1.5px solid #FCA5A5',
+                    fontSize: '0.92em',
+                    color: '#991B1B',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                    <div>
+                      <strong>Action Required:</strong> Click on the specific loan(s) or credit card(s) above that you want to transfer. The button to check eligibility will unlock once at least 1 item is selected.
+                    </div>
                   </div>
                 )}
               </div>
@@ -1549,20 +1570,50 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData }) => {
 
       {/* Submit Button */}
       <div className="form-actions">
+        {isBTSelectionPending && (
+          <div style={{
+            marginBottom: '14px',
+            padding: '12px 18px',
+            background: '#FEF2F2',
+            border: '1.5px solid #F87171',
+            borderRadius: '8px',
+            color: '#B91C1C',
+            fontSize: '0.92rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            textAlign: 'center'
+          }}>
+            <span>⚠️</span>
+            <span>Please select at least 1 loan or credit card for Balance Transfer (or uncheck "Yes, I want to do Balance Transfer") to check eligibility.</span>
+          </div>
+        )}
         <button
           type="submit"
           className="btn-submit"
-          disabled={loading}
+          disabled={loading || isBTSelectionPending}
+          title={isBTSelectionPending ? 'Select at least one loan or credit card for BT, or uncheck Balance Transfer' : 'Generate Eligibility Report'}
           style={{
             fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             fontStyle: 'normal',
             fontWeight: 600,
-            color: 'rgb(255, 255, 255)',
+            color: isBTSelectionPending ? '#64748b' : 'rgb(255, 255, 255)',
             fontSize: '18px',
-            lineHeight: '24px'
+            lineHeight: '24px',
+            backgroundColor: isBTSelectionPending ? '#cbd5e1' : undefined,
+            cursor: isBTSelectionPending ? 'not-allowed' : 'pointer',
+            opacity: isBTSelectionPending ? 0.75 : 1,
+            boxShadow: isBTSelectionPending ? 'none' : undefined,
+            transition: 'all 0.2s ease'
           }}
         >
-          {loading ? 'Processing Analysis...' : 'Generate Eligibility Report'}
+          {loading 
+            ? 'Processing Analysis...' 
+            : (isBTSelectionPending 
+                ? '⚠️ Select Loan / Card for BT to Proceed' 
+                : 'Generate Eligibility Report')}
         </button>
       </div>
 
