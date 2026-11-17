@@ -8,7 +8,7 @@ import {
 import * as XLSX from 'xlsx';
 import { db } from '../../config/firebase.js';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
-import { formatBanksShortList } from '../../services/leadService.js';
+import { formatBanksShortList, isGenuineCustomerLead } from '../../services/leadService.js';
 import './LeadManager.css';
 
 const MONTH_NAMES = [
@@ -194,7 +194,7 @@ const LeadManager = ({ userRole }) => {
     const fetchLeads = async () => {
         setLoading(true);
         try {
-            let firestoreLeads = [];
+            let firestoreLeads = null;
             try {
                 const leadsSnap = await getDocs(collection(db, 'leads'));
                 firestoreLeads = leadsSnap.docs.map(d => ({
@@ -203,28 +203,29 @@ const LeadManager = ({ userRole }) => {
                 }));
                 console.log(`🔥 Loaded ${firestoreLeads.length} leads from Firestore`);
             } catch (fsErr) {
-                console.warn('⚠️ Firestore fetch error, relying on local:', fsErr);
+                console.warn('⚠️ Firestore fetch error, relying on local fallback:', fsErr);
             }
 
-            const stored = localStorage.getItem('laxmi_leads');
-            const localLeads = stored ? JSON.parse(stored) : [];
+            let leadsToUse = [];
+            if (firestoreLeads !== null) {
+                // Firestore is the centralized authoritative database for all users and devices.
+                // Overwrite stale local storage cache so old mock/historical leads don't persist on any user's machine.
+                leadsToUse = firestoreLeads;
+                localStorage.setItem('laxmi_leads', JSON.stringify(firestoreLeads));
+            } else {
+                // Fallback only if Firestore is completely unreachable
+                const stored = localStorage.getItem('laxmi_leads');
+                leadsToUse = stored ? JSON.parse(stored) : [];
+            }
 
-            // Combine and de-duplicate by ID / mobile
-            const combined = [...firestoreLeads, ...(Array.isArray(localLeads) ? localLeads : [])];
-            const uniqueMap = new Map();
-            combined.forEach(item => {
-                const key = item.id || `${item.mobile}_${item.name}`;
-                if (!uniqueMap.has(key)) {
-                    uniqueMap.set(key, item);
-                }
-            });
-
-            const uniqueLeads = Array.from(uniqueMap.values());
-            setLeads(uniqueLeads);
+            // Strictly filter to genuine leads (rejects fake numbers, dummy names, salary < 25k)
+            const genuineLeads = (Array.isArray(leadsToUse) ? leadsToUse : []).filter(isGenuineCustomerLead);
+            setLeads(genuineLeads);
         } catch (err) {
             console.error('Error loading leads:', err);
             const stored = localStorage.getItem('laxmi_leads');
-            setLeads(stored ? JSON.parse(stored) : []);
+            const localLeads = stored ? JSON.parse(stored) : [];
+            setLeads((Array.isArray(localLeads) ? localLeads : []).filter(isGenuineCustomerLead));
         } finally {
             setLoading(false);
         }
@@ -242,20 +243,11 @@ const LeadManager = ({ userRole }) => {
                 }));
                 console.log(`🔥 Real-time leads sync: ${firestoreLeads.length} leads in Firestore`);
 
-                const stored = localStorage.getItem('laxmi_leads');
-                const localLeads = stored ? JSON.parse(stored) : [];
-
-                const combined = [...firestoreLeads, ...(Array.isArray(localLeads) ? localLeads : [])];
-                const uniqueMap = new Map();
-                combined.forEach(item => {
-                    const key = item.id || `${item.mobile}_${item.name}`;
-                    if (!uniqueMap.has(key)) {
-                        uniqueMap.set(key, item);
-                    }
-                });
-
-                const uniqueLeads = Array.from(uniqueMap.values());
-                setLeads(uniqueLeads);
+                // Authoritative Cloud Sync:
+                // Filter genuine leads only and keep local storage in sync with cloud truth
+                const genuineLeads = firestoreLeads.filter(isGenuineCustomerLead);
+                localStorage.setItem('laxmi_leads', JSON.stringify(genuineLeads));
+                setLeads(genuineLeads);
                 setLoading(false);
             }, (fsErr) => {
                 console.warn('⚠️ Real-time listener fallback:', fsErr);
