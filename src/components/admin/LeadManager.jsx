@@ -18,6 +18,131 @@ const MONTH_NAMES = [
 
 const AVAILABLE_YEARS = [2024, 2025, 2026, 2027, 2028];
 
+export const getLeadProductBadge = (lead) => {
+    if (!lead) return null;
+    const mode = (lead.mode || lead.productMode || '').toLowerCase();
+    const code = (lead.productCode || '').toUpperCase();
+    const type = (lead.productType || '').toLowerCase();
+    const wantsBT = lead.wantsBT === 'Yes' || lead.wantsBT === true || lead.isBTMode;
+
+    if (code === 'TOPUP' || mode === 'topup' || type.includes('top-up') || lead.isTopUp) {
+        return (
+            <span style={{
+                background: '#E0F2FE',
+                color: '#0369A1',
+                border: '1px solid #7DD3FC',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                letterSpacing: '0.4px',
+                textTransform: 'uppercase',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+            }}>
+                ⚡ Top-Up Loan
+            </span>
+        );
+    }
+
+    if (code === 'OD_BT' || (mode === 'od' && wantsBT) || type.includes('takeover')) {
+        return (
+            <span style={{
+                background: '#ECFDF5',
+                color: '#047857',
+                border: '1px solid #6EE7B7',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                letterSpacing: '0.4px',
+                textTransform: 'uppercase',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+            }}>
+                💳 OD Takeover (BT)
+            </span>
+        );
+    }
+
+    if (code === 'OD' || mode === 'od' || type.includes('overdraft') || lead.isOD) {
+        return (
+            <span style={{
+                background: '#F0FDF4',
+                color: '#15803D',
+                border: '1px solid #86EFAC',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                letterSpacing: '0.4px',
+                textTransform: 'uppercase',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+            }}>
+                💳 Overdraft (OD)
+            </span>
+        );
+    }
+
+    if (code === 'PL_BT' || wantsBT) {
+        return (
+            <span style={{
+                background: '#F5F3FF',
+                color: '#6D28D9',
+                border: '1px solid #C4B5FD',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                letterSpacing: '0.4px',
+                textTransform: 'uppercase',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+            }}>
+                🔄 PL Balance Transfer
+            </span>
+        );
+    }
+
+    return (
+        <span style={{
+            background: '#EFF6FF',
+            color: '#1D4ED8',
+            border: '1px solid #BFDBFE',
+            padding: '2px 8px',
+            borderRadius: '6px',
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            letterSpacing: '0.4px',
+            textTransform: 'uppercase',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px'
+        }}>
+            💰 Personal Loan
+        </span>
+    );
+};
+
+export const getLeadProductText = (lead) => {
+    if (!lead) return 'Personal Loan';
+    const mode = (lead.mode || lead.productMode || '').toLowerCase();
+    const code = (lead.productCode || '').toUpperCase();
+    const type = (lead.productType || '').toLowerCase();
+    const wantsBT = lead.wantsBT === 'Yes' || lead.wantsBT === true || lead.isBTMode;
+
+    if (code === 'TOPUP' || mode === 'topup' || type.includes('top-up') || lead.isTopUp) return 'Top-Up Loan';
+    if (code === 'OD_BT' || (mode === 'od' && wantsBT) || type.includes('takeover')) return 'Overdraft (OD Takeover / BT)';
+    if (code === 'OD' || mode === 'od' || type.includes('overdraft') || lead.isOD) return 'Overdraft Facility (OD)';
+    if (code === 'PL_BT' || wantsBT) return 'Personal Loan (Balance Transfer)';
+    return 'Personal Loan (Fresh)';
+};
+
 const LeadManager = ({ userRole }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [leads, setLeads] = useState([]);
@@ -27,6 +152,7 @@ const LeadManager = ({ userRole }) => {
 
     // Filter states
     const [dateFilter, setDateFilter] = useState('all'); // 'today', 'week', 'month', 'specific_month', 'all'
+    const [productFilter, setProductFilter] = useState('all'); // 'all', 'pl', 'pl_bt', 'od', 'od_bt', 'topup'
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // e.g. 2026
 
@@ -187,14 +313,27 @@ const LeadManager = ({ userRole }) => {
         return leads.filter(lead => {
             // Search term match
             const q = searchTerm.toLowerCase();
+            const productText = getLeadProductText(lead).toLowerCase();
             const matchesSearch = !searchTerm ||
                 (lead?.name || '').toLowerCase().includes(q) ||
                 (lead?.mobile || '').includes(q) ||
                 (lead?.company || lead?.employer || '').toLowerCase().includes(q) ||
                 (lead?.city || '').toLowerCase().includes(q) ||
-                (lead?.selectedBanks || '').toLowerCase().includes(q);
+                (lead?.selectedBanks || '').toLowerCase().includes(q) ||
+                (lead?.productType || '').toLowerCase().includes(q) ||
+                productText.includes(q);
 
             if (!matchesSearch) return false;
+
+            // Product Mode Filter
+            if (productFilter !== 'all') {
+                if (productFilter === 'topup' && !productText.includes('top-up')) return false;
+                if (productFilter === 'od_bt' && (!productText.includes('takeover') && !productText.includes('od bt'))) return false;
+                if (productFilter === 'od' && (!productText.includes('overdraft') || productText.includes('takeover') || productText.includes('bt'))) return false;
+                if (productFilter === 'pl_bt' && !productText.includes('balance transfer')) return false;
+                if (productFilter === 'pl' && !productText.includes('fresh')) return false;
+            }
+
             if (dateFilter === 'all') return true;
 
             const leadDate = parseLeadDate(lead);
@@ -226,7 +365,7 @@ const LeadManager = ({ userRole }) => {
 
             return true;
         });
-    }, [leads, searchTerm, dateFilter, selectedMonth, selectedYear]);
+    }, [leads, searchTerm, dateFilter, productFilter, selectedMonth, selectedYear]);
 
     // Selection Handlers
     const handleSelectLead = (id) => {
@@ -326,6 +465,7 @@ const LeadManager = ({ userRole }) => {
         // Sheet 1: Customer Dossier (Key-Value Representation)
         const dossierRows = [
             { 'Dossier Field': 'Lead ID', 'Customer Information': lead.id || 'N/A' },
+            { 'Dossier Field': 'Facility / Product', 'Customer Information': getLeadProductText(lead) },
             { 'Dossier Field': 'Date Logged', 'Customer Information': lead.timestamp || (lead.createdAt ? new Date(lead.createdAt).toLocaleString('en-IN') : 'N/A') },
             { 'Dossier Field': 'Customer Name', 'Customer Information': lead.name || 'Anonymous Applicant' },
             { 'Dossier Field': 'Mobile Number', 'Customer Information': lead.mobile || 'N/A' },
@@ -395,6 +535,7 @@ const LeadManager = ({ userRole }) => {
         const rows = exportData.map((l, index) => ({
             'S.No': index + 1,
             'Lead ID': l.id || `LD-${index + 1}`,
+            'Facility / Product': getLeadProductText(l),
             'Date & Time': l.timestamp || (l.createdAt ? new Date(l.createdAt).toLocaleString('en-IN') : 'N/A'),
             'Customer Name': l.name || 'Anonymous',
             'Mobile Number': l.mobile || 'N/A',
@@ -424,6 +565,7 @@ const LeadManager = ({ userRole }) => {
         const columnWidths = [
             { wch: 6 },  // S.No
             { wch: 18 }, // Lead ID
+            { wch: 28 }, // Facility / Product
             { wch: 22 }, // Date & Time
             { wch: 22 }, // Customer Name
             { wch: 14 }, // Mobile Number
@@ -465,6 +607,16 @@ const LeadManager = ({ userRole }) => {
 --------------------------------------
 👤 *Customer Name:* ${lead?.name || 'N/A'}
 📱 *Mobile Number:* ${lead?.mobile || 'N/A'}
+🎯 *Facility / Product:* ${getLeadProductText(lead)}
+🏢 *Company:* ${lead?.company || lead?.employer || 'N/A'} (Cat: ${lead?.category || 'General'})
+💼 *Employment:* ${lead?.employment || 'Salaried'}
+💰 *Net Monthly Income:* ₹${Number(lead?.totalIncome || lead?.monthlyIncome || 0).toLocaleString('en-IN')}
+💵 *Basic Salary:* ₹${Number(lead?.basicSalary || 0).toLocaleString('en-IN')}
+💳 *Existing EMIs:* ₹${Number(lead?.existingEMI || 0).toLocaleString('en-IN')}
+🔄 *Balance Transfer (BT):* ${lead?.wantsBT || 'No'}
+📍 *Location:* ${lead?.city || 'N/A'}, ${lead?.state || 'N/A'}
+🏛️ *Selected / Eligible Banks:* ${formatBanksShortList(lead?.selectedBanks || lead?.eligibleBanks)}
+📅 *Date Logged:* ${lead?.timestamp || (lead?.createdAt ? new Date(lead?.createdAt).toLocaleString('en-IN') : 'N/A')}
 🏢 *Company:* ${lead?.company || lead?.employer || 'N/A'} (Cat: ${lead?.category || 'General'})
 💼 *Employment:* ${lead?.employment || 'Salaried'}
 💰 *Net Monthly Income:* ₹${Number(lead?.totalIncome || lead?.monthlyIncome || 0).toLocaleString('en-IN')}
@@ -620,6 +772,51 @@ const LeadManager = ({ userRole }) => {
                         </div>
                     </div>
                 )}
+
+                {/* Product / Facility Filter */}
+                <div className="product-filter-row" style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div className="filter-group-title" style={{ fontSize: '0.85rem' }}>
+                        <span>Facility Type:</span>
+                    </div>
+                    <div className="date-filter-pills">
+                        <button 
+                            className={`filter-pill ${productFilter === 'all' ? 'active' : ''}`}
+                            onClick={() => setProductFilter('all')}
+                        >
+                            All Facilities
+                        </button>
+                        <button 
+                            className={`filter-pill ${productFilter === 'pl' ? 'active' : ''}`}
+                            onClick={() => setProductFilter('pl')}
+                        >
+                            ⚡ PL (Fresh)
+                        </button>
+                        <button 
+                            className={`filter-pill ${productFilter === 'pl_bt' ? 'active' : ''}`}
+                            onClick={() => setProductFilter('pl_bt')}
+                        >
+                            🔄 PL (BT)
+                        </button>
+                        <button 
+                            className={`filter-pill ${productFilter === 'od' ? 'active' : ''}`}
+                            onClick={() => setProductFilter('od')}
+                        >
+                            💳 OD Limit
+                        </button>
+                        <button 
+                            className={`filter-pill ${productFilter === 'od_bt' ? 'active' : ''}`}
+                            onClick={() => setProductFilter('od_bt')}
+                        >
+                            🔄 OD Takeover (BT)
+                        </button>
+                        <button 
+                            className={`filter-pill ${productFilter === 'topup' ? 'active' : ''}`}
+                            onClick={() => setProductFilter('topup')}
+                        >
+                            ⚡ Top-Up Loan
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Filter Summary Banner & Search Controls */}
@@ -676,7 +873,7 @@ const LeadManager = ({ userRole }) => {
                                     onChange={handleSelectAll}
                                 />
                             </th>
-                            <th>Customer & Date</th>
+                            <th>Customer & Facility</th>
                             <th>Contact & Location</th>
                             <th>Employment & Income</th>
                             <th>Selected Banks & Status</th>
@@ -702,6 +899,9 @@ const LeadManager = ({ userRole }) => {
                                     >
                                         {lead?.name || 'Anonymous Applicant'}
                                         <ArrowUpRight size={13} className="inspect-icon" />
+                                    </div>
+                                    <div style={{ marginTop: '3px', marginBottom: '4px' }}>
+                                        {getLeadProductBadge(lead)}
                                     </div>
                                     <div className="lead-time">
                                         <Calendar size={11} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
@@ -847,12 +1047,23 @@ const LeadManager = ({ userRole }) => {
                                 <div className="applicant-contact">
                                     <span className="phone-badge">📱 {activeShareLead?.mobile || 'N/A'}</span>
                                     <span className="date-badge">📅 {activeShareLead?.timestamp || (activeShareLead?.createdAt ? new Date(activeShareLead?.createdAt).toLocaleString('en-IN') : 'N/A')}</span>
+                                    {getLeadProductBadge(activeShareLead)}
                                 </div>
                             </div>
                         </div>
 
                         {/* Financial & Profile Attributes Grid */}
                         <div className="dossier-metrics-grid">
+                            <div className="dossier-metric-item highlight-cyan">
+                                <span className="metric-icon">🎯</span>
+                                <div className="metric-content">
+                                    <span className="metric-label">Facility / Loan Type</span>
+                                    <div style={{ marginTop: '3px' }}>
+                                        {getLeadProductBadge(activeShareLead)}
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="dossier-metric-item">
                                 <span className="metric-icon">🏢</span>
                                 <div className="metric-content">
@@ -1005,15 +1216,6 @@ const LeadManager = ({ userRole }) => {
                                 <Mail size={17} />
                                 <span>Email</span>
                             </button>
-
-                            <button 
-                                className="dossier-action-btn btn-close-dossier"
-                                onClick={() => setActiveShareLead(null)}
-                                title="Close Dossier"
-                            >
-                                <X size={15} />
-                                <span>Close</span>
-                            </button>
                         </div>
                     </div>
                 </div>,
@@ -1044,6 +1246,10 @@ const LeadManager = ({ userRole }) => {
                                     <div className="detail-field">
                                         <span className="detail-label">Full Name:</span>
                                         <span className="detail-val">{activeDetailLead?.name || 'N/A'}</span>
+                                    </div>
+                                    <div className="detail-field">
+                                        <span className="detail-label">Facility Applied:</span>
+                                        <span className="detail-val">{getLeadProductBadge(activeDetailLead)}</span>
                                     </div>
                                     <div className="detail-field">
                                         <span className="detail-label">Mobile Number:</span>

@@ -481,8 +481,8 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
     }
     
     const parsedSalary = parseFloat(formData.basicSalary) || 0;
-    if (parsedSalary < 5000) {
-      setValidationError(`Basic salary must be at least ₹5,000 to process through the institutional banking engine.`);
+    if (parsedSalary < 25000) {
+      setValidationError(`Basic salary must be at least ₹25,000 to process through the institutional banking engine.`);
       document.getElementById('basicSalary')?.focus();
       return;
     }
@@ -885,7 +885,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
         <div className="form-group">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
             <label htmlFor="basicSalary" style={{ margin: 0, fontWeight: 700, color: '#1f2937' }}>
-              Monthly Basic / In-Hand Salary <span className="required">*</span>
+              Monthly Basic / In-Hand Salary <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 600 }}>(Min: ₹25,000)</span> <span className="required">*</span>
             </label>
             <label style={{
               display: 'inline-flex',

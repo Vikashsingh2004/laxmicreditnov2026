@@ -76,7 +76,7 @@ export const isGenuineCustomerLead = (lead) => {
     }
     const lowerName = rawName.toLowerCase();
     const dummyNames = [
-        'customer', 'anonymous', 'anonymous customer', 'test', 'tester', 'dummy', 
+        'customer', 'anonymous', 'anonymous customer', 'test', 'tester', 'dummy',
         'applicant', 'user', 'admin', 'na', 'n/a', 'none', 'asdf', 'qwerty', 'xyz',
         'test user', 'dummy user', 'testing'
     ];
@@ -89,9 +89,9 @@ export const isGenuineCustomerLead = (lead) => {
         return false;
     }
 
-    // 3. Basic salary check: must be at least ₹8,000 (minimum statutory wage)
+    // 3. Basic salary check: must be at least ₹25,000 as per institutional policy
     const salary = Number(lead.basicSalary || lead.totalIncome || 0);
-    if (salary < 8000) {
+    if (salary < 25000) {
         return false;
     }
 
@@ -165,18 +165,44 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
         const hasLiabilities = loansArr.length > 0 || existingEMI > 0;
         const wantsBT = ((subData.wantsBT || rawForm.wantsBT) && hasLiabilities) ? 'Yes' : 'No';
 
+        // ── Determine Accurate Product Mode & Label ───────────────────────────
+        const rawMode = rawForm.mode || rawForm.productMode || subData.mode || subData.productMode || metaData.mode || metaData.productMode || 'pl';
+        const isBT = wantsBT === 'Yes' || Boolean(subData.isBTMode || rawForm.isBTMode || metaData.isBTMode);
+
+        let productType = 'Personal Loan (Fresh)';
+        let productCode = 'PL';
+
+        if (rawMode === 'topup' || subData.isTopUp || rawForm.isTopUp || metaData.isTopUp) {
+            productType = 'Top-Up Loan';
+            productCode = 'TOPUP';
+        } else if (rawMode === 'od' || subData.isOD || rawForm.isOD || metaData.isOD) {
+            if (isBT && hasLiabilities) {
+                productType = 'Overdraft (OD BT / Takeover)';
+                productCode = 'OD_BT';
+            } else {
+                productType = 'Overdraft Facility (OD)';
+                productCode = 'OD';
+            }
+        } else if (isBT && hasLiabilities) {
+            productType = 'Personal Loan (BT)';
+            productCode = 'PL_BT';
+        } else {
+            productType = 'Personal Loan (Fresh)';
+            productCode = 'PL';
+        }
+
         // Format eligible banks list
-        const eligibleBanksArr = Array.isArray(eligibleBanks) 
-            ? eligibleBanks 
+        const eligibleBanksArr = Array.isArray(eligibleBanks)
+            ? eligibleBanks
             : (eligibleBanks ? String(eligibleBanks).split(',') : []);
         const formattedEligibleBanks = formatBanksShortList(eligibleBanksArr);
 
         // Selected banks: ONLY set if customer actually selected banks
-        const selectedBanksArr = Array.isArray(subData.selectedBanks) 
-            ? subData.selectedBanks 
+        const selectedBanksArr = Array.isArray(subData.selectedBanks)
+            ? subData.selectedBanks
             : (Array.isArray(rawForm.selectedBanks) ? rawForm.selectedBanks : []);
-        const formattedSelectedBanks = selectedBanksArr.length > 0 
-            ? formatBanksShortList(selectedBanksArr) 
+        const formattedSelectedBanks = selectedBanksArr.length > 0
+            ? formatBanksShortList(selectedBanksArr)
             : 'Pending Customer Selection';
 
         const now = new Date();
@@ -191,6 +217,9 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
             createdAt: now.toISOString(),
             name: customerName,
             mobile: mobileNumber,
+            mode: rawMode,
+            productCode: productCode,
+            productType: productType,
             basicSalary: basicSalary,
             incentive1: Number(rawForm.incentiveMonth1 || metaData.incentiveMonth1 || 0),
             incentive2: Number(rawForm.incentiveMonth2 || metaData.incentiveMonth2 || 0),
@@ -245,7 +274,7 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
         // Notify any active window listeners
         try {
             window.dispatchEvent(new Event('storage'));
-        } catch (e) {}
+        } catch (e) { }
 
         // ── STEP 3: GOOGLE SHEETS SYNC (NON-BLOCKING BACKGROUND) ──────────────
         if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== 'PASTE_YOUR_APPS_SCRIPT_URL_HERE') {
@@ -254,7 +283,7 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify(lead),
             }).then(() => console.log('✅ Google Sheets synced'))
-              .catch(e => console.warn('⚠️ Google Sheets background sync notice:', e));
+                .catch(e => console.warn('⚠️ Google Sheets background sync notice:', e));
         }
 
         return lead;
@@ -277,6 +306,21 @@ export const saveSelectedBanks = async (metadata = {}, selectedBanks = []) => {
         const mobileNumber = meta.mobileNumber || meta.mobile || '';
         const selectedBanksStr = Array.isArray(selectedBanks) ? selectedBanks.join(', ') : String(selectedBanks || '');
 
+        const rawMode = meta.mode || meta.productMode || 'pl';
+        const isBT = meta.wantsBT === 'Yes' || meta.wantsBT === true || meta.isBTMode;
+        let productType = 'Personal Loan (Fresh)';
+        let productCode = 'PL';
+        if (rawMode === 'topup' || meta.isTopUp) {
+            productType = 'Top-Up Loan';
+            productCode = 'TOPUP';
+        } else if (rawMode === 'od' || meta.isOD) {
+            productType = isBT ? 'Overdraft (OD BT / Takeover)' : 'Overdraft Facility (OD)';
+            productCode = isBT ? 'OD_BT' : 'OD';
+        } else if (isBT) {
+            productType = 'Personal Loan (BT)';
+            productCode = 'PL_BT';
+        }
+
         const payload = {
             action: 'bank_selection',
             timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
@@ -289,6 +333,9 @@ export const saveSelectedBanks = async (metadata = {}, selectedBanks = []) => {
             company: meta.companyName || meta.company || '',
             state: meta.state || '',
             city: meta.city || '',
+            mode: rawMode,
+            productCode: productCode,
+            productType: productType,
             status: 'Selected'
         };
 
@@ -334,7 +381,7 @@ export const saveSelectedBanks = async (metadata = {}, selectedBanks = []) => {
         // Notify active windows
         try {
             window.dispatchEvent(new Event('storage'));
-        } catch (e) {}
+        } catch (e) { }
 
         // ── STEP 3: GOOGLE SHEETS (NON-BLOCKING BACKGROUND) ───────────────────
         if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== 'PASTE_YOUR_APPS_SCRIPT_URL_HERE') {
@@ -343,7 +390,7 @@ export const saveSelectedBanks = async (metadata = {}, selectedBanks = []) => {
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify(payload),
             }).then(() => console.log('✅ Google Sheets bank selection synced'))
-              .catch(e => console.warn('⚠️ Google Sheets sync notice:', e));
+                .catch(e => console.warn('⚠️ Google Sheets sync notice:', e));
         }
 
         return true;
