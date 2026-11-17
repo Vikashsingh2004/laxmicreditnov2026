@@ -59,38 +59,38 @@ const formatCategoryDisplay = (cat) => {
   const upper = String(cat).toUpperCase().trim();
 
   // 1. Caution / Negative / Delisted / DNS
-  if (upper.includes('CAUTION') || upper.includes('NEGATIVE') || upper.includes('NOT TO BE') || upper === 'DNS' || upper === 'DELIST') {
+  if (upper.includes('CAUTION') || upper.includes('NEGATIVE') || upper.includes('NOT TO BE') || upper === 'DNS' || upper === 'DELIST' || upper === 'REJECT') {
     return 'Caution / Delisted';
   }
 
-  // 2. Government & Public Sector
-  if (upper.includes('GOVT') || upper.includes('GOVERNMENT') || upper.startsWith('GOV') || upper.startsWith('CATG') || upper === 'POL' || upper === 'DEF' || upper === 'STF' || upper === 'PMF') {
-    return 'Govt / PSU';
-  }
-
-  // 3. Super A
-  if (upper.includes('SUPER') || upper.includes('AA') || upper === 'A+' || upper === 'ACE PLUS' || upper === 'ELITE' || upper === 'SUPERPRIME' || upper === 'SCATA' || upper.includes('TATA GROUP')) {
+  // 2. Super A
+  if (upper.includes('SUPER') || upper.includes('AA') || upper === 'A+' || upper === 'ACE PLUS' || upper === 'ELITE' || upper === 'SUPERPRIME' || upper === 'SCATA' || upper.includes('TATA GROUP') || upper === 'CAT SA') {
     return 'Super A';
   }
 
-  // 4. Category A
-  if (upper === 'A' || upper === 'CAT A' || upper === 'CSC A' || upper === 'CATEGORY A' || upper === 'ACE' || upper === 'CAT SA' || upper.endsWith('-A')) {
+  // 3. Category A
+  if (upper === 'A' || upper === 'CAT A' || upper === 'CSC A' || upper === 'CATEGORY A' || upper === 'CATGA' || upper === 'CAT-A' || upper === 'CAT-GA' || upper === 'ACE' || upper.endsWith('-A')) {
     return 'Category A';
   }
 
-  // 5. Category B
-  if (upper === 'B' || upper === 'CAT B' || upper === 'CSC B' || upper === 'CATEGORY B' || upper === 'PREFERRED' || upper === 'CATGB' || upper.endsWith('-B')) {
+  // 4. Category B
+  if (upper === 'B' || upper === 'CAT B' || upper === 'CSC B' || upper === 'CATEGORY B' || upper === 'PREFERRED' || upper === 'CATGB' || upper === 'CAT-B' || upper === 'CAT-GB' || upper.endsWith('-B')) {
     return 'Category B';
   }
 
-  // 6. Category C
-  if (upper === 'C' || upper === 'CAT C' || upper === 'CSC C' || upper === 'CATEGORY C' || upper === 'CAT C1000' || upper === 'OPEN MARKET' || upper === 'SILVER' || upper === 'OTHERS' || upper.endsWith('-C')) {
+  // 5. Category C
+  if (upper === 'C' || upper === 'CAT C' || upper === 'CSC C' || upper === 'CATEGORY C' || upper === 'CATGC' || upper === 'CAT-C' || upper === 'CAT-GC' || upper === 'CAT C1000' || upper === 'OPEN MARKET' || upper === 'SILVER' || upper === 'OTHERS' || upper.endsWith('-C')) {
     return 'Category C';
   }
 
-  // 7. Category D
-  if (upper === 'D' || upper === 'CAT D' || upper === 'CSC D' || upper === 'CATEGORY D' || upper === 'CATDU' || upper === 'E' || upper === 'F' || upper === 'H' || upper === 'J' || upper === 'U' || upper.endsWith('-D')) {
+  // 6. Category D
+  if (upper === 'D' || upper === 'CAT D' || upper === 'CSC D' || upper === 'CATEGORY D' || upper === 'CATGD' || upper === 'CAT-D' || upper === 'CAT-GD' || upper === 'CATDU' || upper === 'E' || upper === 'F' || upper === 'H' || upper === 'J' || upper === 'U' || upper === 'UNLISTED' || upper.endsWith('-D')) {
     return 'Category D';
+  }
+
+  // 7. Government & Public Sector (ONLY explicit govt keywords, never generic CATG!)
+  if (upper.includes('GOVT') || upper.includes('GOVERNMENT') || upper === 'GOV' || upper === 'POL' || upper === 'DEF' || upper === 'STF' || upper === 'PMF') {
+    return 'Govt / PSU';
   }
 
   return cat;
@@ -1251,36 +1251,40 @@ const UnifiedBankPolicyManager = () => {
 
     setIsDropdownOpen(false);
     const normalizedTarget = target.toUpperCase();
+    const cleanSearch = normalizedTarget.replace(/\b(PVT|LTD|PRIVATE|LIMITED|LLP|INC|CORP)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
     
-    // Look in active bankCompanies
-    const exactMatch = bankCompanies.find(c => 
-      (c.companyName || c.name || '').trim().toUpperCase() === normalizedTarget
-    );
+    // 1. Exact match in active bankCompanies
+    let match = bankCompanies.find(c => {
+      const cName = (c.companyName || c.name || '').trim().toUpperCase();
+      return cName === normalizedTarget;
+    });
 
-    if (exactMatch) {
-      setLookupResult({
-        companyName: exactMatch.companyName || exactMatch.name,
-        category: exactMatch.category,
-        displayCategory: formatCategoryDisplay(exactMatch.category),
-        isListed: true,
-        bankName: activeConfigBank.name
+    // 2. Cleaned suffix match (stripping PVT, LTD, etc.)
+    if (!match && cleanSearch) {
+      match = bankCompanies.find(c => {
+        const cName = (c.companyName || c.name || '').trim().toUpperCase();
+        const cClean = cName.replace(/\b(PVT|LTD|PRIVATE|LIMITED|LLP|INC|CORP)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
+        return cClean === cleanSearch;
       });
-      return;
     }
 
-    // If no exact match, try partial match
-    const partialMatch = bankCompanies.find(c => 
-      (c.companyName || c.name || '').trim().toUpperCase().includes(normalizedTarget)
-    );
+    // 3. Substring / Prefix match if at least 3 characters
+    if (!match && cleanSearch && cleanSearch.length >= 3) {
+      match = bankCompanies.find(c => {
+        const cName = (c.companyName || c.name || '').trim().toUpperCase();
+        const cClean = cName.replace(/\b(PVT|LTD|PRIVATE|LIMITED|LLP|INC|CORP)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
+        return cClean.startsWith(cleanSearch) || cleanSearch.startsWith(cClean) || cClean.includes(cleanSearch) || cleanSearch.includes(cClean);
+      });
+    }
 
-    if (partialMatch) {
+    if (match) {
+      const rawCategory = match.category || match.Category || 'B';
       setLookupResult({
-        companyName: partialMatch.companyName || partialMatch.name,
-        searchQuery: target,
-        category: partialMatch.category,
-        displayCategory: formatCategoryDisplay(partialMatch.category),
+        companyName: match.companyName || match.name,
+        category: rawCategory,
+        displayCategory: formatCategoryDisplay(rawCategory),
         isListed: true,
-        isPartial: true,
+        isPartial: (match.companyName || match.name).toUpperCase() !== normalizedTarget,
         bankName: activeConfigBank.name
       });
       return;

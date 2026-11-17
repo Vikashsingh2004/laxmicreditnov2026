@@ -39,7 +39,7 @@ import { axisBankConfig } from '../banks/axis-bank/config.js';
 import { lntConfig } from '../banks/lnt/config.js';
 
 // Import company database service
-import { getCompanyCategoryForBank } from './companyDatabaseService.js';
+import { getCompanyCategoryForBank, resolveBankDbKey, initializeBankDatabases } from './companyDatabaseService.js';
 
 // 🚫 IMPORT 5-LAYER PROCESSING FEE GUARD
 import { protectAgainstProcessingFee } from '../utils/processingFeeGuard.js';
@@ -98,6 +98,13 @@ export const calculateUnifiedBankEligibility = (bankInput) => {
 export const calculateLoanEligibility = async (userData) => {
   console.log('🏛️  === REAL LOAN SERVICE: STARTING CALCULATION ===');
   console.log('📄 Input received:', userData);
+
+  // Ensure bank databases are initialized before running category checks
+  try {
+    await initializeBankDatabases();
+  } catch (dbInitErr) {
+    console.warn('Bank databases initialization notice:', dbInitErr);
+  }
 
   // Check if this is a Balance Transfer request
   const btLoansList = (userData.loansForBT && userData.loansForBT.length > 0)
@@ -194,19 +201,19 @@ export const calculateLoanEligibility = async (userData) => {
     { id: 'idfc', name: 'IDFC First Bank', calculator: calculateIdfcEligibility, config: idfcConfig, hasDatabase: true },
     { id: 'hdfc', name: 'HDFC Bank', calculator: calculateHdfcEligibility, config: hdfcConfig, hasDatabase: true },
     { id: 'icici', name: 'ICICI Bank', calculator: calculateIciciEligibility, config: iciciConfig, hasDatabase: true },
-    { id: 'bandhan', name: 'Bandhan Bank', calculator: calculateBandhanEligibility, config: bandhanConfig, hasDatabase: false },
+    { id: 'bandhan', name: 'Bandhan Bank', calculator: calculateBandhanEligibility, config: bandhanConfig, hasDatabase: true },
     { id: 'chola', name: 'Cholamandalam Finance', calculator: calculateCholaEligibility, config: cholaConfig, hasDatabase: true },
     { id: 'axis', name: 'Axis Finance', calculator: calculateAxisFinEligibility, config: axisFinConfig, hasDatabase: true },
     { id: 'indusind', name: 'IndusInd Bank', calculator: calculateIndusindEligibility, config: indusindConfig, hasDatabase: true },
-    { id: 'piramal', name: 'Piramal Finance', calculator: calculatePiramalEligibility, config: piramalConfig, hasDatabase: false },
+    { id: 'piramal', name: 'Piramal Finance', calculator: calculatePiramalEligibility, config: piramalConfig, hasDatabase: true },
 
     // Additional Banks & NBFCs from Master Excel Policy
     { id: 'axis-bank', name: 'Axis Bank', calculator: calculateAxisBankEligibility, config: axisBankConfig, hasDatabase: true },
-    { id: 'lnt', name: 'L&T Finance', calculator: calculateLntEligibility, config: lntConfig, hasDatabase: false },
-    { id: 'smfg', name: 'SMFG India Credit', calculator: calculateSmfgEligibility, config: smfgConfig, hasDatabase: false },
-    { id: 'incred', name: 'Incred Finance', calculator: calculateIncredEligibility, config: incredConfig, hasDatabase: false },
-    { id: 'au-bank', name: 'AU Small Finance Bank', calculator: calculateAuEligibility, config: auConfig, hasDatabase: false },
-    { id: 'abfl', name: 'Aditya Birla Finance', calculator: calculateUnifiedBankEligibility, config: { name: 'Aditya Birla Finance', maxLoanCap: 5000000, defaultRate: 11.25 }, hasDatabase: false }
+    { id: 'lnt', name: 'L&T Finance', calculator: calculateLntEligibility, config: lntConfig, hasDatabase: true },
+    { id: 'smfg', name: 'SMFG India Credit', calculator: calculateSmfgEligibility, config: smfgConfig, hasDatabase: true },
+    { id: 'incred', name: 'Incred Finance', calculator: calculateIncredEligibility, config: incredConfig, hasDatabase: true },
+    { id: 'au-bank', name: 'AU Small Finance Bank', calculator: calculateAuEligibility, config: auConfig, hasDatabase: true },
+    { id: 'abfl', name: 'Aditya Birla Finance', calculator: calculateUnifiedBankEligibility, config: { name: 'Aditya Birla Finance', maxLoanCap: 5000000, defaultRate: 11.25 }, hasDatabase: true }
   ];
 
   // Respect Admin Suspensions if configured in LocalStorage
@@ -257,29 +264,29 @@ const matchCategory = (cat1, cat2) => {
 
   if (s1 === s2) return true;
 
-  // Super Prime / Super A / A+
-  const isSuperPrime1 = s1 === 'SUPERPRIME' || s1 === 'SUPERA' || s1 === 'A+' || s1 === 'SCATA' || s1 === 'PLUS' || s1 === 'APLUS';
-  const isSuperPrime2 = s2 === 'SUPERPRIME' || s2 === 'SUPERA' || s2 === 'A+' || s2 === 'SCATA' || s2 === 'PLUS' || s2 === 'APLUS';
+  // Super Prime / Super A / A+ / Elite / Superprime / Tata Group / Scata
+  const isSuperPrime1 = s1 === 'SUPERPRIME' || s1 === 'SUPERA' || s1 === 'A+' || s1 === 'SCATA' || s1 === 'PLUS' || s1 === 'APLUS' || s1 === 'ELITE' || s1 === 'TATAGROUP' || s1 === 'CATSA' || s1 === 'CSCAA' || s1 === 'CATAA';
+  const isSuperPrime2 = s2 === 'SUPERPRIME' || s2 === 'SUPERA' || s2 === 'A+' || s2 === 'SCATA' || s2 === 'PLUS' || s2 === 'APLUS' || s2 === 'ELITE' || s2 === 'TATAGROUP' || s2 === 'CATSA' || s2 === 'CSCAA' || s2 === 'CATAA';
   if (isSuperPrime1 && isSuperPrime2) return true;
 
-  // Preferred / Category A
-  const isPreferred1 = s1 === 'PREFERRED' || s1 === 'A' || s1 === 'CATA' || s1 === 'CATGA' || s1 === 'CATEGORYA';
-  const isPreferred2 = s2 === 'PREFERRED' || s2 === 'A' || s2 === 'CATA' || s2 === 'CATGA' || s2 === 'CATEGORYA';
+  // Preferred / Category A / ACE
+  const isPreferred1 = s1 === 'PREFERRED' || s1 === 'A' || s1 === 'CATA' || s1 === 'CATGA' || s1 === 'CATEGORYA' || s1 === 'ACE' || s1 === 'CSCA';
+  const isPreferred2 = s2 === 'PREFERRED' || s2 === 'A' || s2 === 'CATA' || s2 === 'CATGA' || s2 === 'CATEGORYA' || s2 === 'ACE' || s2 === 'CSCA';
   if (isPreferred1 && isPreferred2) return true;
 
-  // Elite / Category B
-  const isElite1 = s1 === 'ELITE' || s1 === 'B' || s1 === 'CATB' || s1 === 'CATGB' || s1 === 'CATEGORYB';
-  const isElite2 = s2 === 'ELITE' || s2 === 'B' || s2 === 'CATB' || s2 === 'CATGB' || s2 === 'CATEGORYB';
+  // Category B / Preferred
+  const isElite1 = s1 === 'B' || s1 === 'CATB' || s1 === 'CATGB' || s1 === 'CATEGORYB' || s1 === 'CSCB';
+  const isElite2 = s2 === 'B' || s2 === 'CATB' || s2 === 'CATGB' || s2 === 'CATEGORYB' || s2 === 'CSCB';
   if (isElite1 && isElite2) return true;
 
-  // Category C
-  const isC1 = s1 === 'C' || s1 === 'CATC' || s1 === 'CATGC' || s1 === 'CATEGORYC';
-  const isC2 = s2 === 'C' || s2 === 'CATC' || s2 === 'CATGC' || s2 === 'CATEGORYC';
+  // Category C / Open Market / Silver / Others
+  const isC1 = s1 === 'C' || s1 === 'CATC' || s1 === 'CATGC' || s1 === 'CATEGORYC' || s1 === 'OPENMARKET' || s1 === 'SILVER' || s1 === 'OTHERS' || s1 === 'CSCC';
+  const isC2 = s2 === 'C' || s2 === 'CATC' || s2 === 'CATGC' || s2 === 'CATEGORYC' || s2 === 'OPENMARKET' || s2 === 'SILVER' || s2 === 'OTHERS' || s2 === 'CSCC';
   if (isC1 && isC2) return true;
 
-  // Category D
-  const isD1 = s1 === 'D' || s1 === 'CATD' || s1 === 'CATGD' || s1 === 'CATEGORYD';
-  const isD2 = s2 === 'D' || s2 === 'CATD' || s2 === 'CATGD' || s2 === 'CATEGORYD';
+  // Category D / Unlisted
+  const isD1 = s1 === 'D' || s1 === 'CATD' || s1 === 'CATGD' || s1 === 'CATEGORYD' || s1 === 'CATDU' || s1 === 'UNLISTED' || s1 === 'CSCD';
+  const isD2 = s2 === 'D' || s2 === 'CATD' || s2 === 'CATGD' || s2 === 'CATEGORYD' || s2 === 'CATDU' || s2 === 'UNLISTED' || s2 === 'CSCD';
   if (isD1 && isD2) return true;
 
   // Open Market / Unlisted (matches C or D or Open Market if one is Open Market / Unlisted)
@@ -298,8 +305,8 @@ const matchCategory = (cat1, cat2) => {
   if (isNri1 && isNri2) return true;
 
   // Govt
-  const isGovt1 = s1 === 'GOVT' || s1 === 'PSU' || s1 === 'GOVERNMENT';
-  const isGovt2 = s2 === 'GOVT' || s2 === 'PSU' || s2 === 'GOVERNMENT';
+  const isGovt1 = s1 === 'GOVT' || s1 === 'PSU' || s1 === 'GOVERNMENT' || s1 === 'GOV';
+  const isGovt2 = s2 === 'GOVT' || s2 === 'PSU' || s2 === 'GOVERNMENT' || s2 === 'GOV';
   if (isGovt1 && isGovt2) return true;
 
   return false;
@@ -616,23 +623,13 @@ const matchCategory = (cat1, cat2) => {
         bankCategory = 'Govt';
         govtPolicy = getBankConfig(name, 'govtPolicy', location);
         console.log(`   🏛️ ${name}: Govt Direct Injection Active`, govtPolicy);
-      } else if (hasDatabase) {
-        let bankDbKey = id;
-        if (id === 'axis-bank' || id === 'axis' || name === 'Axis Bank' || name === 'Axis Finance') {
-          bankDbKey = 'axis_fin';
-        } else if (id === 'shriram') {
-          bankDbKey = 'shriram';
-        }
-
-        if (calculatorInput.companyName) {
-          bankCategory = getCompanyCategoryForBank(calculatorInput.companyName, bankDbKey, calculatorInput.category || 'A');
-          console.log(`   🏭 ${name}: ${calculatorInput.companyName} → ${bankCategory}`);
-        } else {
-          bankCategory = calculatorInput.category || 'A';
-        }
+      } else if (calculatorInput.companyName) {
+        const bankDbKey = resolveBankDbKey(id || name);
+        bankCategory = getCompanyCategoryForBank(calculatorInput.companyName, bankDbKey, calculatorInput.category || 'B');
+        console.log(`   🏭 ${name} (${bankDbKey}): ${calculatorInput.companyName} → ${bankCategory}`);
       } else {
         bankCategory = calculatorInput.category || 'B';
-        console.log(`   🏭 ${name}: Using default Category ${bankCategory} (no database)`);
+        console.log(`   🏭 ${name}: Using default Category ${bankCategory} (no company name)`);
       }
 
       // 3.5 INDUSIND BANK CATEGORY D RESTRICTION (Not in Policy)

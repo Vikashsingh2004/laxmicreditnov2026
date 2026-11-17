@@ -147,7 +147,26 @@ export const loadBankDatabase = async (bankName) => {
 
   dbHealth.banks[targetKey].status = 'loading';
 
-  // 1. Load bank-specific master JSON first (Contains full 40,000 to 182,000 companies)
+  // 1. Check Cloud Firestore FIRST for active admin customizations / replacements
+  try {
+    const docRef = doc(db, 'company_databases', targetKey);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const cloudData = docSnap.data().data || [];
+      if (Array.isArray(cloudData) && cloudData.length > 0) {
+        bankDatabases[targetKey] = cloudData;
+        bankDatabases[bankName] = cloudData;
+        dbHealth.banks[targetKey].status = 'ok';
+        dbHealth.banks[targetKey].count = cloudData.length;
+        console.log(`☁️ CLOUD DATABASE LOADED for ${targetKey} (${cloudData.length} records)`);
+        return cloudData;
+      }
+    }
+  } catch (cloudErr) {
+    console.warn(`Firestore check skipped or failed for ${targetKey}:`, cloudErr.message);
+  }
+
+  // 2. Load bank-specific master JSON (Contains full 40,000 to 182,000 companies)
   try {
     const data = await fetchWithRetry(`/data/${targetKey}_companies.json`);
     if (data && Array.isArray(data) && data.length > 0) {
@@ -177,13 +196,13 @@ export const loadBankDatabase = async (bankName) => {
     console.warn(`Local JSON not found for ${targetKey} (${localErr.message}). Attempting universal baseline...`);
   }
 
-  // 2. Fallback to Universal Database for banks without a dedicated file (Bandhan, Shri Ram, Piramal)
+  // 3. Fallback to Universal Database for banks without a dedicated file
   try {
     const universalData = await fetchWithRetry('/data/universal_companies.json');
     if (universalData && Array.isArray(universalData) && universalData.length > 0) {
       const mapped = universalData.map((c, idx) => ({
         companyName: c.companyName || c.name || `Company ${idx + 1}`,
-        category: 'CATGB' // Standard Tier B default
+        category: 'B' // Standard Tier B default
       }));
       bankDatabases[targetKey] = mapped;
       bankDatabases[bankName] = mapped;
@@ -194,22 +213,6 @@ export const loadBankDatabase = async (bankName) => {
     }
   } catch (uErr) {
     console.warn(`Universal fallback failed for ${targetKey}: ${uErr.message}`);
-  }
-
-  // 3. Optional Firestore check for custom admin patches
-  try {
-    const docRef = doc(db, 'company_databases', targetKey);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const cloudData = docSnap.data().data || [];
-      bankDatabases[targetKey] = cloudData;
-      bankDatabases[bankName] = cloudData;
-      dbHealth.banks[targetKey].status = 'ok';
-      dbHealth.banks[targetKey].count = cloudData.length;
-      return cloudData;
-    }
-  } catch (cloudErr) {
-    console.warn(`Firestore check skipped for ${targetKey}`);
   }
 
   return bankDatabases[targetKey] || [];
@@ -271,43 +274,70 @@ export const getCompanySuggestions = (searchTerm) => {
 /**
  * Standardized mapping
  */
-const mapCategoryToConfigKey = (rawCat) => {
+export const mapCategoryToConfigKey = (rawCat) => {
   if (!rawCat) return 'B';
   const c = String(rawCat).toUpperCase().trim();
 
   // 1. Caution / Negative / Delisted / DNS
-  if (c.includes('CAUTION') || c.includes('NEGATIVE') || c.includes('NOT TO BE') || c === 'DNS' || c === 'DELIST') {
+  if (c.includes('CAUTION') || c.includes('NEGATIVE') || c.includes('NOT TO BE') || c === 'DNS' || c === 'DELIST' || c === 'REJECT') {
     return 'Caution';
   }
 
-  // 2. Government & Public Sector
-  if (c.includes('GOVT') || c.includes('GOVERNMENT') || c.startsWith('GOV') || c.startsWith('CATG') || c === 'POL' || c === 'DEF' || c === 'STF' || c === 'PMF') {
-    return 'GOVT';
-  }
-
-  // 3. Super A / AA / A+ / ACE PLUS / Elite / Superprime / Tata Group
-  if (c.includes('SUPER') || c.includes('AA') || c === 'A+' || c === 'ACE PLUS' || c === 'ELITE' || c === 'SUPERPRIME' || c === 'SCATA' || c.includes('TATA GROUP')) {
+  // 2. Super A / AA / Elite / Superprime / Tata Group / Scata
+  if (
+    c.includes('SUPER') || 
+    c.includes('AA') || 
+    c === 'A+' || 
+    c === 'ACE PLUS' || 
+    c === 'ELITE' || 
+    c === 'SUPERPRIME' || 
+    c === 'SCATA' || 
+    c.includes('TATA GROUP') ||
+    c === 'CAT SA'
+  ) {
     return 'Super A';
   }
 
-  // 4. Category A / ACE
-  if (c === 'A' || c === 'CAT A' || c === 'CSC A' || c === 'CATEGORY A' || c === 'ACE' || c === 'CAT SA' || c.endsWith('-A')) {
+  // 3. Category A
+  if (
+    c === 'A' || c === 'CAT A' || c === 'CSC A' || c === 'CATEGORY A' || c === 'CATGA' || 
+    c === 'CAT-A' || c === 'CAT-GA' || c === 'ACE' || c.endsWith('-A')
+  ) {
     return 'A';
   }
 
-  // 5. Category B / Preferred
-  if (c === 'B' || c === 'CAT B' || c === 'CSC B' || c === 'CATEGORY B' || c === 'PREFERRED' || c === 'CATGB' || c.endsWith('-B')) {
+  // 4. Category B
+  if (
+    c === 'B' || c === 'CAT B' || c === 'CSC B' || c === 'CATEGORY B' || c === 'CATGB' || 
+    c === 'CAT-B' || c === 'CAT-GB' || c === 'PREFERRED' || c.endsWith('-B')
+  ) {
     return 'B';
   }
 
-  // 6. Category C / Open Market / Silver
-  if (c === 'C' || c === 'CAT C' || c === 'CSC C' || c === 'CATEGORY C' || c === 'CAT C1000' || c === 'OPEN MARKET' || c === 'SILVER' || c === 'OTHERS' || c.endsWith('-C')) {
+  // 5. Category C
+  if (
+    c === 'C' || c === 'CAT C' || c === 'CSC C' || c === 'CATEGORY C' || c === 'CATGC' || 
+    c === 'CAT-C' || c === 'CAT-GC' || c === 'CAT C1000' || c === 'OPEN MARKET' || 
+    c === 'SILVER' || c === 'OTHERS' || c.endsWith('-C')
+  ) {
     return 'C';
   }
 
-  // 7. Category D / Unlisted / E / F / H / J
-  if (c === 'D' || c === 'CAT D' || c === 'CSC D' || c === 'CATEGORY D' || c === 'CATDU' || c === 'E' || c === 'F' || c === 'H' || c === 'J' || c === 'U' || c.endsWith('-D') || c.startsWith('CAT ') || c.startsWith('CSC ')) {
+  // 6. Category D / Unlisted
+  if (
+    c === 'D' || c === 'CAT D' || c === 'CSC D' || c === 'CATEGORY D' || c === 'CATGD' || 
+    c === 'CAT-D' || c === 'CAT-GD' || c === 'CATDU' || c === 'E' || c === 'F' || 
+    c === 'H' || c === 'J' || c === 'U' || c === 'UNLISTED' || c.endsWith('-D')
+  ) {
     return 'D';
+  }
+
+  // 7. Government & Public Sector (ONLY explicit govt keywords, never generic CATG!)
+  if (
+    c.includes('GOVT') || c.includes('GOVERNMENT') || c === 'GOV' || 
+    c === 'POL' || c === 'DEF' || c === 'STF' || c === 'PMF'
+  ) {
+    return 'Govt';
   }
 
   return 'B'; // Default fallback
@@ -329,42 +359,38 @@ export const getCompanyCategoryForBank = (companyName, bankName, fallbackCategor
     return fallbackCategory;
   }
 
+  // Helper to extract clean name and category from any object structure
+  const getEntryName = (c) => (c?.companyName || c?.name || c?.Company || c?.['Company Name'] || '').trim().toUpperCase();
+  const getEntryCategory = (c) => (c?.category || c?.Category || c?.tier || c?.Tier || 'B');
+
   // 1. Exact match
-  let match = bankDb.find(
-    company => company?.companyName && company.companyName.trim().toUpperCase() === normalizedCompany
-  );
+  let match = bankDb.find(c => getEntryName(c) === normalizedCompany);
 
   // 2. Cleaned suffix match (stripping PVT, LTD, PRIVATE, LIMITED, and special characters)
-  if (!match) {
-    const cleanSearch = normalizedCompany.replace(/\b(PVT|LTD|PRIVATE|LIMITED)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
-    if (cleanSearch) {
-      match = bankDb.find(company => {
-        if (!company?.companyName) return false;
-        const cClean = company.companyName.trim().toUpperCase().replace(/\b(PVT|LTD|PRIVATE|LIMITED)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
-        return cClean === cleanSearch;
-      });
-    }
+  const cleanSearch = normalizedCompany.replace(/\b(PVT|LTD|PRIVATE|LIMITED|LLP|INC|CORP)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
+  if (!match && cleanSearch) {
+    match = bankDb.find(c => {
+      const cClean = getEntryName(c).replace(/\b(PVT|LTD|PRIVATE|LIMITED|LLP|INC|CORP)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
+      return cClean === cleanSearch;
+    });
   }
 
-  // 3. Prefix match if at least 4 characters
-  if (!match) {
-    const cleanSearch = normalizedCompany.replace(/\b(PVT|LTD|PRIVATE|LIMITED)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
-    if (cleanSearch && cleanSearch.length >= 4) {
-      match = bankDb.find(company => {
-        if (!company?.companyName) return false;
-        const cClean = company.companyName.trim().toUpperCase().replace(/\b(PVT|LTD|PRIVATE|LIMITED)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
-        return cClean.startsWith(cleanSearch) || cleanSearch.startsWith(cClean);
-      });
-    }
+  // 3. Substring / Prefix match if at least 3 characters
+  if (!match && cleanSearch && cleanSearch.length >= 3) {
+    match = bankDb.find(c => {
+      const cClean = getEntryName(c).replace(/\b(PVT|LTD|PRIVATE|LIMITED|LLP|INC|CORP)\b/g, '').replace(/[^A-Z0-9]/g, ' ').trim();
+      return cClean.startsWith(cleanSearch) || cleanSearch.startsWith(cClean) || cClean.includes(cleanSearch) || cleanSearch.includes(cClean);
+    });
   }
 
   if (match) {
-    const configKey = mapCategoryToConfigKey(match.category);
-    console.log(`✅ ${bankName} (${targetKey}): ${companyName} → ${match.category} (${configKey})`);
+    const rawCat = getEntryCategory(match);
+    const configKey = mapCategoryToConfigKey(rawCat);
+    console.log(`✅ ${bankName} (${targetKey}): ${companyName} → ${rawCat} (${configKey})`);
     return configKey;
   }
 
-  // Not found in bank DB? Don't just return UNLISTED, return the fallback provided by the calculator
+  // Not found in bank DB? Return the fallback provided by the calculator
   console.log(`⚠️ ${bankName}: ${companyName} NOT in database. Using fallback: ${fallbackCategory}`);
   return fallbackCategory;
 };
@@ -382,6 +408,10 @@ export const getCompanyCategoriesForAllBanks = (companyName, globalFallback = 'B
     icici: getCompanyCategoryForBank(companyName, 'icici', globalFallback),
     chola: getCompanyCategoryForBank(companyName, 'chola', globalFallback),
     indusind: getCompanyCategoryForBank(companyName, 'indusind', globalFallback),
+    bandhan: getCompanyCategoryForBank(companyName, 'bandhan', globalFallback),
+    piramal: getCompanyCategoryForBank(companyName, 'piramal', globalFallback),
+    lt: getCompanyCategoryForBank(companyName, 'lt', globalFallback),
+    smfg: getCompanyCategoryForBank(companyName, 'smfg', globalFallback),
     'axis_fin': getCompanyCategoryForBank(companyName, 'axis_fin', globalFallback),
     'axis_bank': getCompanyCategoryForBank(companyName, 'axis_bank', globalFallback),
     'axis-bank': getCompanyCategoryForBank(companyName, 'axis_bank', globalFallback),
@@ -395,12 +425,20 @@ export const getCompanyCategoriesForAllBanks = (companyName, globalFallback = 'B
 export const saveBankDatabaseToCloud = async (bankId, data) => {
   try {
     const docRef = doc(db, 'company_databases', bankId);
+    // Sanitize and trim data to stay comfortably within Firestore document limit
+    const cleanData = (data || []).map(item => ({
+      companyName: item.companyName || item.name || '',
+      category: item.category || item.Category || 'B'
+    })).filter(item => item.companyName);
+
+    // Limit to 15,000 top records to strictly comply with Firestore 1MB doc cap
+    const payload = cleanData.length > 15000 ? cleanData.slice(0, 15000) : cleanData;
     await setDoc(docRef, {
-      data,
+      data: payload,
       updatedAt: new Date().toISOString(),
-      count: data.length
+      count: payload.length
     });
-    console.log(`✅ ${bankId} database synced to Cloud successfully.`);
+    console.log(`✅ ${bankId} database synced to Cloud successfully (${payload.length} records).`);
     return true;
   } catch (error) {
     console.error(`❌ Failed to sync ${bankId} to Cloud:`, error);
