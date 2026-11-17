@@ -88,6 +88,7 @@ export const calculateShriRamEligibility = (userData) => {
     govtFOIR,
     govtMultiplier,
     govtMaxTenure,
+    maxTenureOverride,
     // Balance Transfer fields
     isBTMode,
     loansForBT,
@@ -160,7 +161,7 @@ export const calculateShriRamEligibility = (userData) => {
   // Apply tenure capping based on category (tenure is in months)
   // Logic Bridge: Support govtMaxTenure override
   let lookupCategory = category === 'Govt' ? 'C' : category; // Fallback Govt to C for Shri Ram
-  let maxTenureForCategory = isGovtEmployee && govtMaxTenure ? govtMaxTenure : shriRamConfig.maxTenureByCategory[lookupCategory];
+  let maxTenureForCategory = maxTenureOverride || (isGovtEmployee && govtMaxTenure ? govtMaxTenure : shriRamConfig.maxTenureByCategory[lookupCategory]);
 
   if (!maxTenureForCategory || maxTenureForCategory === 0) {
     return {
@@ -310,6 +311,8 @@ export const calculateShriRamEligibility = (userData) => {
     interestRate: effectiveInterestRate,
     loanTenure: cappedTenureYears,
     loanTenureMonths: cappedTenureMonths,
+    maxTenure: Math.round(cappedTenureMonths / 12),
+    maxTenureMonths: cappedTenureMonths,
     tenureCapped: tenureCapped,
     requestedTenure: loanTenure,
     requestedTenureMonths: requestedTenureMonths,

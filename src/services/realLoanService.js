@@ -17,6 +17,7 @@ import { calculateAuEligibility, getAuROI } from '../banks/au/calculator.js';
 import { calculateIncredEligibility } from '../banks/incred/calculator.js';
 import { calculateAxisBankEligibility } from '../banks/axis-bank/calculator.js';
 import { calculateLntEligibility } from '../banks/lnt/calculator.js';
+import { calculateFinnableEligibility } from '../banks/finnable/calculator.js';
 
 // Import bank configs for transparency
 import { kotakConfig } from '../banks/kotak/config.js';
@@ -37,6 +38,7 @@ import { auConfig } from '../banks/au/config.js';
 import { incredConfig } from '../banks/incred/config.js';
 import { axisBankConfig } from '../banks/axis-bank/config.js';
 import { lntConfig } from '../banks/lnt/config.js';
+import { finnableConfig } from '../banks/finnable/config.js';
 
 // Import company database service
 import { getCompanyCategoryForBank, resolveBankDbKey, initializeBankDatabases } from './companyDatabaseService.js';
@@ -213,7 +215,9 @@ export const calculateLoanEligibility = async (userData) => {
     { id: 'smfg', name: 'SMFG India Credit', calculator: calculateSmfgEligibility, config: smfgConfig, hasDatabase: true },
     { id: 'incred', name: 'Incred Finance', calculator: calculateIncredEligibility, config: incredConfig, hasDatabase: true },
     { id: 'au-bank', name: 'AU Small Finance Bank', calculator: calculateAuEligibility, config: auConfig, hasDatabase: true },
-    { id: 'abfl', name: 'Aditya Birla Finance', calculator: calculateUnifiedBankEligibility, config: { name: 'Aditya Birla Finance', maxLoanCap: 5000000, defaultRate: 11.25 }, hasDatabase: true }
+    { id: 'abfl', name: 'Aditya Birla Finance', calculator: calculateUnifiedBankEligibility, config: { name: 'Aditya Birla Finance', maxLoanCap: 5000000, defaultRate: 11.25 }, hasDatabase: true },
+    { id: 'bajaj', name: 'Bajaj Finserv', calculator: calculateBajajEligibility, config: bajajConfig, hasDatabase: true },
+    { id: 'finnable', name: 'Finnable Finance', calculator: calculateFinnableEligibility, config: finnableConfig, hasDatabase: true }
   ];
 
   // Respect Admin Suspensions if configured in LocalStorage
@@ -349,7 +353,7 @@ const matchCategory = (cat1, cat2) => {
         return { bankName: name, eligible: false, reason: 'Cheque salaries not accepted by this institution.', category: 'REJECTED' };
       }
 
-      // 1.5 COMPREHENSIVE BALANCE TRANSFER (BT) RESTRICTION GATES (from BT_Policy_Rules_Exact.xlsx)
+      // 1.5 COMPREHENSIVE BALANCE TRANSFER (BT) DUAL POLICY GATES (COUNT + SALARY MULTIPLIER POS)
       if (calculatorInput.isBTMode) {
         // InCred Finance: ONLY FRESH FUNDING ALLOWED (0 BT ALLOWED)
         const isIncredInst = id === 'incred' || name.toLowerCase().includes('incred') || adminAllConfig.btConfiguration?.isFreshOnly === true;
@@ -366,7 +370,7 @@ const matchCategory = (cat1, cat2) => {
 
         const btLoans = calculatorInput.loansForBT || [];
 
-        // Internal / Same-Bank Balance Transfer Gate
+        // Internal / Same-Bank Balance Transfer Gate across all 19 institutions
         const isSameBankBT = btLoans.some(loan => {
           const l = String(loan.lender || loan.bank || '').toLowerCase().trim();
           if (!l || l === 'other') return false;
@@ -387,6 +391,8 @@ const matchCategory = (cat1, cat2) => {
           if (id === 'incred' || name.toLowerCase().includes('incred')) return l.includes('incred');
           if (id === 'au-bank' || id === 'au' || name.toLowerCase().includes('au')) return l.includes('au');
           if (id === 'abfl' || name.toLowerCase().includes('aditya birla') || name.toLowerCase().includes('abfl')) return l.includes('aditya birla') || l.includes('abfl');
+          if (id === 'bajaj' || name.toLowerCase().includes('bajaj')) return l.includes('bajaj');
+          if (id === 'finnable' || name.toLowerCase().includes('finnable')) return l.includes('finnable');
           return name.toLowerCase().includes(l) || l.includes(name.toLowerCase());
         });
 
@@ -403,7 +409,7 @@ const matchCategory = (cat1, cat2) => {
 
         const ccBtLoans = btLoans.filter(l => {
           const t = String(l.type || l.loanType || '').toLowerCase();
-          return t.includes('card') || t.includes('cc');
+          return t.includes('card') || t.includes('cc') || t.includes('credit');
         });
         const appBtLoans = btLoans.filter(l => {
           const t = String(l.type || l.loanType || '').toLowerCase();
@@ -411,26 +417,59 @@ const matchCategory = (cat1, cat2) => {
         });
         const plBtLoans = btLoans.filter(l => {
           const t = String(l.type || l.loanType || '').toLowerCase();
-          return !t.includes('card') && !t.includes('cc') && !t.includes('app');
+          return !t.includes('card') && !t.includes('cc') && !t.includes('credit') && !t.includes('app');
         });
 
         const numCcBt = ccBtLoans.length;
         const numPlBt = plBtLoans.length;
         const numAppBt = appBtLoans.length;
         const totalBtCount = btLoans.length;
-        const hasCcInBt = numCcBt > 0;
-        const hasPlInBt = numPlBt > 0;
 
-        // 1. Credit Card BT Strictly Prohibited Banks (IndusInd, HDFC, ICICI, Kotak, Bandhan, L&T, AU Bank)
-        const isCcBtProhibitedBank = [
-          'indusind', 'hdfc', 'icici', 'kotak', 'bandhan', 'lnt', 'au-bank', 'au'
-        ].includes(id) || name === 'IndusInd Bank' || name === 'HDFC Bank' || name === 'ICICI Bank' || 
-        name.toLowerCase().includes('kotak') || name.toLowerCase().includes('bandhan') || 
-        name.toLowerCase().includes('l&t') || name.toLowerCase().includes('lnt') || 
-        name.toLowerCase().includes('au ') || adminAllConfig.btConfiguration?.allowCcBt === false || 
-        uPolicy?.demographics?.allowCcBt === false;
+        // Bank Identifiers for Policy Resolution
+        const isAbfl = id === 'abfl' || name.toLowerCase().includes('aditya birla') || name.toLowerCase().includes('abfl');
+        const isChola = id === 'chola' || id === 'cholamandalam' || name.toLowerCase().includes('chola');
+        const isTata = id === 'tata' || name.toLowerCase().includes('tata');
+        const isPoonawala = id === 'poonawala' || name.toLowerCase().includes('poonawala') || name.toLowerCase().includes('poonawalla');
+        const isAxisBank = id === 'axis-bank' || name === 'Axis Bank' || (name.toLowerCase().includes('axis') && !name.toLowerCase().includes('finance'));
+        const isAxisFin = id === 'axis' || id === 'axis-fin' || name.toLowerCase().includes('axis finance');
+        const isPiramal = id === 'piramal' || name.toLowerCase().includes('piramal');
+        const isSmfg = id === 'smfg' || name.toLowerCase().includes('smfg');
+        const isIdfc = id === 'idfc' || name.toLowerCase().includes('idfc');
+        const isKotak = id === 'kotak' || name.toLowerCase().includes('kotak');
+        const isIndusind = id === 'indusind' || name.toLowerCase().includes('indusind');
+        const isBandhan = id === 'bandhan' || name.toLowerCase().includes('bandhan');
+        const isBajaj = id === 'bajaj' || name.toLowerCase().includes('bajaj');
+        const isLnt = id === 'lnt' || name.toLowerCase().includes('l&t') || name.toLowerCase().includes('lnt');
+        const isHdfc = id === 'hdfc' || name.toLowerCase().includes('hdfc');
+        const isIcici = id === 'icici' || name.toLowerCase().includes('icici');
+        const isAu = id === 'au-bank' || id === 'au' || name.toLowerCase().includes('au');
+        const isFinnable = id === 'finnable' || name.toLowerCase().includes('finnable');
 
-        if (hasCcInBt && isCcBtProhibitedBank) {
+        // =========================================================================
+        // 1. DUAL GATE PART A: PHYSICAL BT COUNT LIMITS (Excel Policies across ALL 19 Banks)
+        // =========================================================================
+
+        // A. Credit Card BT Count Gate (5 CC / 6 CC / 2 CC / 0 CC)
+        let maxCcBtAllowed = 0;
+        if (isChola || isPoonawala) {
+          maxCcBtAllowed = 6; // Excel: 6 CC BT ALLOW
+        } else if (isAbfl || isTata || isAxisBank || isAxisFin) {
+          maxCcBtAllowed = 5; // Excel: 5 CC BT ALLOW
+        } else if (isIdfc) {
+          maxCcBtAllowed = 3;
+        } else if (isPiramal || isSmfg) {
+          maxCcBtAllowed = 2; // Excel: 2 CC BT ALLOW
+        } else {
+          maxCcBtAllowed = 0; // Excel: CC BT NOT ALLOW (Kotak, IndusInd, HDFC, ICICI, L&T, Bandhan, AU, Bajaj, Finnable, InCred)
+        }
+
+        if (adminAllConfig.btConfiguration?.allowCcBt === false || uPolicy?.demographics?.allowCcBt === false) {
+          maxCcBtAllowed = 0;
+        } else if (adminAllConfig.btConfiguration?.maxCreditCardBTCount !== undefined && adminAllConfig.btConfiguration?.maxCreditCardBTCount !== null) {
+          maxCcBtAllowed = Number(adminAllConfig.btConfiguration.maxCreditCardBTCount);
+        }
+
+        if (numCcBt > 0 && maxCcBtAllowed === 0) {
           return {
             bankName: name,
             eligible: false,
@@ -441,26 +480,87 @@ const matchCategory = (cat1, cat2) => {
           };
         }
 
-        // Note: In bank policy guidelines, "5 or 6" refers strictly to Salary Multipliers (e.g. 5x or 6x Monthly Salary),
-        // NOT counting the physical number of credit cards or personal loans.
-        // Therefore, multiple debts can be consolidated provided they clear the salary multiplier & FOIR tests below.
-
-        // Piramal Finance Policy: 2 CC BT ALLOW WITH 3 PL BT (Standalone CC BT not allowed)
-        if (name.toLowerCase().includes('piramal') || id === 'piramal') {
-          if (numCcBt > 0 && numPlBt === 0) {
-            return {
-              bankName: name,
-              eligible: false,
-              isBTMode: true,
-              btNotAllowed: true,
-              reason: 'Piramal Finance allows Credit Card BT only WITH at least 1 Personal Loan BT (Standalone CC BT is Not Allowed as per policy).',
-              category: 'REJECTED'
-            };
-          }
+        if (numCcBt > maxCcBtAllowed) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `BT Rejected: ${name} allows a maximum of ${maxCcBtAllowed} Credit Card BT(s) (${numCcBt} selected). Policy: MAX ${maxCcBtAllowed} CC BT.`,
+            category: 'REJECTED'
+          };
         }
 
-        // 6. Poonawalla Fincorp: Max 3 App Loans
-        if ((name.toLowerCase().includes('poonawala') || name.toLowerCase().includes('poonawalla') || id === 'poonawala') && numAppBt > 3) {
+        // B. Personal Loan (PL) BT Count Gate
+        let maxPlBtAllowed = 6;
+        if (isKotak || isSmfg) {
+          maxPlBtAllowed = 999; // Unlimited PL BT
+        } else if (isAxisFin) {
+          maxPlBtAllowed = 7;
+        } else if (isChola || isAbfl || isTata || isLnt || isBajaj) {
+          maxPlBtAllowed = 6;
+        } else if (isAxisBank || isIndusind || isPoonawala || isFinnable) {
+          maxPlBtAllowed = 5;
+        } else if (isIncredInst) {
+          maxPlBtAllowed = 0;
+        } else {
+          maxPlBtAllowed = 3; // HDFC, ICICI, Bandhan, IDFC, Piramal, AU
+        }
+
+        if (adminAllConfig.btConfiguration?.maxPersonalLoanBTCount !== undefined && adminAllConfig.btConfiguration?.maxPersonalLoanBTCount !== null) {
+          maxPlBtAllowed = Number(adminAllConfig.btConfiguration.maxPersonalLoanBTCount);
+        }
+
+        if (numPlBt > maxPlBtAllowed) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `BT Rejected: ${name} allows a maximum of ${maxPlBtAllowed} Personal Loan BT(s) (${numPlBt} selected). Policy: MAX ${maxPlBtAllowed} PL BT.`,
+            category: 'REJECTED'
+          };
+        }
+
+        // C. Total Combined BT Count Gate
+        let maxTotalBtAllowed = 6;
+        if (isKotak || isSmfg) maxTotalBtAllowed = 999;
+        else if (isAxisFin) maxTotalBtAllowed = 7;
+        else if (isPoonawala) maxTotalBtAllowed = 8;
+        else if (isChola || isAbfl || isTata || isLnt || isBajaj || isIdfc || isFinnable) maxTotalBtAllowed = 6;
+        else if (isAxisBank || isIndusind) maxTotalBtAllowed = 5;
+        else if (isIncredInst) maxTotalBtAllowed = 0;
+        else maxTotalBtAllowed = 3;
+
+        if (adminAllConfig.btConfiguration?.maxTotalBTCount !== undefined && adminAllConfig.btConfiguration?.maxTotalBTCount !== null) {
+          maxTotalBtAllowed = Number(adminAllConfig.btConfiguration.maxTotalBTCount);
+        }
+
+        if (totalBtCount > maxTotalBtAllowed) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `BT Rejected: ${name} allows a maximum of ${maxTotalBtAllowed} total loans/cards for Balance Transfer (${totalBtCount} selected).`,
+            category: 'REJECTED'
+          };
+        }
+
+        // D. Piramal Finance Policy: 2 CC BT ALLOW WITH 1 PL BT (Standalone CC BT not allowed)
+        if (isPiramal && numCcBt > 0 && numPlBt === 0) {
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: 'Piramal Finance allows Credit Card BT only WITH at least 1 Personal Loan BT (Standalone CC BT is Not Allowed as per policy).',
+            category: 'REJECTED'
+          };
+        }
+
+        // E. Poonawalla Fincorp: Max 3 App Loans
+        if (isPoonawala && numAppBt > 3) {
           return {
             bankName: name,
             eligible: false,
@@ -471,35 +571,47 @@ const matchCategory = (cat1, cat2) => {
           };
         }
 
-        // 7. Credit Card POS Limits (Poonawalla <= 4x, Chola <= 6x, ABFL <= 6x)
-        const btCreditCardPOS = ccBtLoans.reduce((sum, loan) => sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || parseFloat(loan.pos) || 0), 0);
-        if ((name.toLowerCase().includes('poonawala') || name.toLowerCase().includes('poonawalla') || id === 'poonawala') && btCreditCardPOS > (calculatorInput.monthlyIncome * 4)) {
+        // =========================================================================
+        // 2. DUAL GATE PART B: SALARY MULTIPLIER POS GATES (Financial Limits)
+        // =========================================================================
+
+        const income = calculatorInput.monthlyIncome || calculatorInput.basicSalary || 0;
+        const btCreditCardPOS = ccBtLoans.reduce((sum, loan) => 
+          sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || parseFloat(loan.pos) || 0), 0);
+
+        // ABFL Excel Policy: SALARY 6 TIME BT ALLOW (Total BT POS <= 6x Monthly Salary)
+        if (isAbfl && calculatorInput.btTotalOutstanding > (income * 6)) {
+          const maxAllowedBT = income * 6;
           return {
             bankName: name,
             eligible: false,
             isBTMode: true,
             btNotAllowed: true,
-            reason: `Poonawalla policy restricts Credit Card Outstanding exceeding 4x monthly income (CC POS: ₹${Math.round(btCreditCardPOS).toLocaleString()} > Max: ₹${Math.round(calculatorInput.monthlyIncome * 4).toLocaleString()}).`,
+            reason: `BT Rejected: Total BT Outstanding (₹${Math.round(calculatorInput.btTotalOutstanding).toLocaleString()}) exceeds 6 times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedBT).toLocaleString()}). Policy: SALARY 6 TIME BT ALLOW.`,
             category: 'REJECTED'
           };
         }
-        if ((name.toLowerCase().includes('chola') || id === 'chola') && btCreditCardPOS > (calculatorInput.monthlyIncome * 6)) {
-          return {
-            bankName: name,
-            eligible: false,
-            isBTMode: true,
-            btNotAllowed: true,
-            reason: `Chola Finance policy restricts Credit Card Outstanding exceeding 6x monthly income (CC POS: ₹${Math.round(btCreditCardPOS).toLocaleString()} > Max: ₹${Math.round(calculatorInput.monthlyIncome * 6).toLocaleString()}).`,
-            category: 'REJECTED'
-          };
+
+        // Credit Card POS Multipliers (Chola <= 6x, Bajaj <= 6x, Poonawala <= 4x, Axis Bank <= 5x, ABFL <= 6x)
+        let ccBtSalaryMultiplier = adminAllConfig.btConfiguration?.maxCreditCardBTMultiplier ??
+          uPolicy?.demographics?.maxCreditCardBTMultiplier ??
+          uPolicy?.abflDemographics?.maxCcBtSalaryMultiplier;
+
+        if (ccBtSalaryMultiplier === undefined || ccBtSalaryMultiplier === null || ccBtSalaryMultiplier === 0) {
+          if (isPoonawala) ccBtSalaryMultiplier = 4; // Excel: CC POS MORE THEN 4 TIME NOT ALLOW
+          else if (isAxisBank) ccBtSalaryMultiplier = 5;
+          else if (isAbfl || isChola || isBajaj || isTata || isAxisFin) ccBtSalaryMultiplier = 6; // Excel: 6 TIME NOT ALLOW
+          else ccBtSalaryMultiplier = 6;
         }
-        if ((name.toLowerCase().includes('abfl') || id === 'abfl') && btCreditCardPOS > (calculatorInput.monthlyIncome * 6)) {
+
+        if (numCcBt > 0 && btCreditCardPOS > (income * ccBtSalaryMultiplier)) {
+          const maxAllowedCCPOS = income * ccBtSalaryMultiplier;
           return {
             bankName: name,
             eligible: false,
             isBTMode: true,
             btNotAllowed: true,
-            reason: `Aditya Birla Finance restricts Credit Card Outstanding exceeding 6x monthly income (CC POS: ₹${Math.round(btCreditCardPOS).toLocaleString()} > Max: ₹${Math.round(calculatorInput.monthlyIncome * 6).toLocaleString()}).`,
+            reason: `BT Rejected: Credit Card BT Outstanding (₹${Math.round(btCreditCardPOS).toLocaleString()}) exceeds ${ccBtSalaryMultiplier} times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedCCPOS).toLocaleString()}).`,
             category: 'REJECTED'
           };
         }
@@ -548,61 +660,7 @@ const matchCategory = (cat1, cat2) => {
         }
       }
 
-      // 2.5 BT CREDIT CARD & TOTAL BT SALARY MULTIPLIER GATE (Bank Policy: 5x or 6x Salary, NOT count of CC/loans)
-      if (calculatorInput.isBTMode) {
-        const isAbfl = id === 'abfl' || name.toLowerCase().includes('aditya birla') || name.toLowerCase().includes('abfl');
-        const isChola = id === 'chola' || id === 'cholamandalam' || name.toLowerCase().includes('chola');
-        const isBajaj = id === 'bajaj' || name.toLowerCase().includes('bajaj');
-        const isTata = id === 'tata' || name.toLowerCase().includes('tata');
-        const isAxisFin = id === 'axis' || id === 'axis-fin' || name.toLowerCase().includes('axis finance');
-        const isAxisBank = id === 'axis-bank' || name === 'Axis Bank';
-        const isPoonawala = id === 'poonawala' || name.toLowerCase().includes('poonawala');
 
-        let ccBtSalaryMultiplier = adminAllConfig.btConfiguration?.maxCreditCardBTMultiplier ??
-          uPolicy?.demographics?.maxCreditCardBTMultiplier ??
-          uPolicy?.abflDemographics?.maxCcBtSalaryMultiplier;
-        
-        if (ccBtSalaryMultiplier === undefined || ccBtSalaryMultiplier === null || ccBtSalaryMultiplier === 0) {
-          if (isAbfl || isChola || isBajaj || isTata || isAxisFin) ccBtSalaryMultiplier = 6;
-          else if (isAxisBank) ccBtSalaryMultiplier = 5;
-          else if (isPoonawala) ccBtSalaryMultiplier = 4;
-          else ccBtSalaryMultiplier = 6;
-        }
-
-        const btCreditCards = (calculatorInput.loansForBT || [])
-          .filter(loan => {
-            const t = String(loan.type || loan.loanType || '').toLowerCase();
-            return t.includes('credit') || t.includes('card') || t === 'cc';
-          });
-        const btCreditCardPOS = btCreditCards.reduce((sum, loan) => 
-          sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || 0), 0);
-
-        const maxAllowedCCPOS = calculatorInput.monthlyIncome * ccBtSalaryMultiplier;
-
-        if (btCreditCardPOS > maxAllowedCCPOS) {
-          return {
-            bankName: name,
-            eligible: false,
-            isBTMode: true,
-            btNotAllowed: true,
-            reason: `BT Rejected: Total Credit Card Outstanding (₹${Math.round(btCreditCardPOS).toLocaleString()}) exceeds ${ccBtSalaryMultiplier} times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedCCPOS).toLocaleString()}).`,
-            category: 'REJECTED'
-          };
-        }
-
-        // Total BT Outstanding vs 6x Monthly Salary (Specifically for ABFL and standard 6x salary policy)
-        if (isAbfl && calculatorInput.btTotalOutstanding > (calculatorInput.monthlyIncome * 6)) {
-          const maxAllowedBT = calculatorInput.monthlyIncome * 6;
-          return {
-            bankName: name,
-            eligible: false,
-            isBTMode: true,
-            btNotAllowed: true,
-            reason: `BT Rejected: Total BT Outstanding (₹${Math.round(calculatorInput.btTotalOutstanding).toLocaleString()}) exceeds 6 times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedBT).toLocaleString()}).`,
-            category: 'REJECTED'
-          };
-        }
-      }
 
       let bankCategory;
       let govtPolicy = null;
@@ -1315,7 +1373,7 @@ const matchCategory = (cat1, cat2) => {
         }
       }
 
-      const isFinnableInst = false;
+      const isFinnableInst = name.toLowerCase().includes('finnable') || id === 'finnable';
 
       // -------------------------------------------------------------
       // Dynamic Bank Policy Specific Credit Card Obligation Percentage
@@ -2129,9 +2187,16 @@ const matchCategory = (cat1, cat2) => {
             maxM = Math.max(maxM, 108);
           }
           bankInput.maxTenureOverride = maxM;
-        } else if (adminAllConfig.tenureRules?.categoryBasedMaxTenure) {
-          const catM = adminAllConfig.tenureRules.categoryBasedMaxTenure[bankCategory] || adminAllConfig.tenureRules.maxTenureMonths;
+        } else if (adminAllConfig.tenureRules) {
+          const catM = adminAllConfig.tenureRules.categoryBasedMaxTenure?.[bankCategory] || 
+                       adminAllConfig.tenureRules.maxTenureMonths || 
+                       adminAllConfig.tenureRules.defaultMaxTenure || 
+                       adminAllConfig.tenureRules.defaultTenure ||
+                       adminAllConfig.tenureRules.maxTenure;
           if (catM) bankInput.maxTenureOverride = Number(catM);
+        }
+        if (!bankInput.maxTenureOverride && (uPolicy?.demographics?.maxTenure || uPolicy?.maxTenure)) {
+          bankInput.maxTenureOverride = Number(uPolicy?.demographics?.maxTenure || uPolicy?.maxTenure);
         }
       } else if (adminAllConfig.interestRates && !govtPolicy) {
         const catRate = adminAllConfig.interestRates.categoryRates?.[bankCategory] || adminAllConfig.interestRates.defaultRate;
@@ -2192,6 +2257,8 @@ const matchCategory = (cat1, cat2) => {
           processingFee: specificPf !== null 
             ? specificPf 
             : (adminAllConfig.feesAndCharges?.processingFeePercentage ?? res.processingFee),
+          maxTenure: res.maxTenure || (res.maxTenureMonths ? Math.round(res.maxTenureMonths / 12) : null) || res.loanTenure || res.tenure,
+          maxTenureMonths: res.maxTenureMonths || (res.maxTenure ? res.maxTenure * 12 : null) || res.loanTenureMonths || res.tenureMonths
         };
 
         if (calculatorInput.isBTMode) {
@@ -2221,14 +2288,14 @@ const matchCategory = (cat1, cat2) => {
       // Specific Processing Fee determination without early return (allowing dynamic admin policy enforcement across all banks)
       let specificPf = adminAllConfig.feesAndCharges?.processingFeePercentage ?? null;
       if (specificPf === null) {
-        if (isIciciInst) specificPf = 0.8;
-        else if (isHdfcInst) specificPf = 0.5;
-        else if (isIndusindInst) specificPf = 1.0;
-        else if (isFinnableInst) specificPf = 2.5;
-        else if (isIdfcInst) specificPf = 1.2;
-        else if (isLntInst) specificPf = 2.0;
-        else if (isPiramalInst) specificPf = 0.75;
-        else if (isSmfgInst) specificPf = ((result?.loanAmount || 0) < 300000 ? 3.5 : 2.5);
+        if (id === 'icici' || name.toLowerCase().includes('icici')) specificPf = 0.8;
+        else if (id === 'hdfc' || name.toLowerCase().includes('hdfc')) specificPf = 0.5;
+        else if (id === 'indusind' || name.toLowerCase().includes('indusind')) specificPf = 1.0;
+        else if (id === 'finnable' || name.toLowerCase().includes('finnable')) specificPf = 2.5;
+        else if (id === 'idfc' || name.toLowerCase().includes('idfc')) specificPf = 1.2;
+        else if (id === 'lnt' || name.toLowerCase().includes('l&t') || name.toLowerCase().includes('lnt')) specificPf = 2.0;
+        else if (id === 'piramal' || name.toLowerCase().includes('piramal')) specificPf = 0.75;
+        else if (id === 'smfg' || name.toLowerCase().includes('smfg')) specificPf = ((result?.loanAmount || 0) < 300000 ? 3.5 : 2.5);
       }
 
       if (isFinnableInst && result) {
@@ -2277,7 +2344,7 @@ const matchCategory = (cat1, cat2) => {
           } else if (isFinnableInst) {
             maxAllowedTenureMonths = isNtc ? 36 : 60;
           } else {
-            maxAllowedTenureMonths = result.loanTenureMonths || result.tenureMonths || 60;
+            maxAllowedTenureMonths = result.maxTenureMonths || (result.maxTenure ? result.maxTenure * 12 : null) || result.loanTenureMonths || result.tenureMonths || 60;
           }
         }
 

@@ -305,6 +305,8 @@ export const calculateSmfgEligibility = (userData, adminBankConfig) => {
     interestRate: effectiveInterestRate,
     loanTenure: tenureYears,
     loanTenureMonths: tenureMonths,
+    maxTenure: Math.round(maxTenureMonthsAllowed / 12),
+    maxTenureMonths: maxTenureMonthsAllowed,
     foirPercentage: effectiveFOIR,
     multiplier: effectiveMultiplier,
     maxLoanCap: maxCap,

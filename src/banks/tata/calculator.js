@@ -371,6 +371,8 @@ export const calculateTataEligibility = (userData) => {
     interestRate: finalInterestRate,
     loanTenure: cappedTenureYears,
     loanTenureMonths: cappedTenureMonths,
+    maxTenure: Math.round(maxTenureForCategory / 12),
+    maxTenureMonths: maxTenureForCategory,
     tenureCapped: tenureCapped,
     requestedTenure: loanTenure,
     requestedTenureMonths: requestedTenureMonths,

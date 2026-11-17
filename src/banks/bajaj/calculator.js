@@ -108,32 +108,38 @@ export const calculateBajajEligibility = (input) => {
   // 1. Demographic & Salary Eligibility
   if (age < bajajConfig.minAge) {
     return {
+      eligible: false,
       isEligible: false,
       eligibleLoanAmount: 0,
       maxLoanAmount: 0,
       reason: `Applicant age must be at least ${bajajConfig.minAge} years for Bajaj Finance (Current: ${age}).`,
-      bank: 'Bajaj Finance'
+      bank: 'Bajaj Finance',
+      bankName: 'Bajaj Finance'
     };
   }
 
   const maxAllowedAge = isGovt ? bajajConfig.retirementAgeGovt : bajajConfig.maxAge;
   if (age > maxAllowedAge) {
     return {
+      eligible: false,
       isEligible: false,
       eligibleLoanAmount: 0,
       maxLoanAmount: 0,
       reason: `Maximum age for Bajaj Finance is ${maxAllowedAge} years (Current: ${age}).`,
-      bank: 'Bajaj Finance'
+      bank: 'Bajaj Finance',
+      bankName: 'Bajaj Finance'
     };
   }
 
   if (monthlyIncome < minRequiredSalary) {
     return {
+      eligible: false,
       isEligible: false,
       eligibleLoanAmount: 0,
       maxLoanAmount: 0,
       reason: `Bajaj Finance requires minimum monthly salary of ₹${minRequiredSalary.toLocaleString('en-IN')} for ${isUnlisted ? 'Unlisted' : 'Listed'} companies (Current: ₹${Math.round(monthlyIncome).toLocaleString('en-IN')}).`,
-      bank: 'Bajaj Finance'
+      bank: 'Bajaj Finance',
+      bankName: 'Bajaj Finance'
     };
   }
 
@@ -141,11 +147,13 @@ export const calculateBajajEligibility = (input) => {
   const totalCcPOS = Number(creditCardPOS || creditCardOutstanding || 0);
   if (totalCcPOS > monthlyIncome * bajajConfig.maxCcBtMultiple) {
     return {
+      eligible: false,
       isEligible: false,
       eligibleLoanAmount: 0,
       maxLoanAmount: 0,
       reason: `Bajaj Finance restricts Credit Card Outstanding exceeding 6x monthly salary (Current CC POS: ₹${Math.round(totalCcPOS).toLocaleString('en-IN')} vs Max: ₹${Math.round(monthlyIncome * 6).toLocaleString('en-IN')}).`,
-      bank: 'Bajaj Finance'
+      bank: 'Bajaj Finance',
+      bankName: 'Bajaj Finance'
     };
   }
 
@@ -159,11 +167,13 @@ export const calculateBajajEligibility = (input) => {
 
   if (maxAllowableEmi <= 0) {
     return {
+      eligible: false,
       isEligible: false,
       eligibleLoanAmount: 0,
       maxLoanAmount: 0,
       reason: `Existing obligations (₹${Math.round(totalObligations).toLocaleString('en-IN')}) exceed the permitted FOIR limit of ${Math.round(foir * 100)}% for Bajaj Finance.`,
-      bank: 'Bajaj Finance'
+      bank: 'Bajaj Finance',
+      bankName: 'Bajaj Finance'
     };
   }
 
@@ -205,11 +215,13 @@ export const calculateBajajEligibility = (input) => {
 
   if (finalLoanAmount < bajajConfig.minLoanAmount) {
     return {
+      eligible: false,
       isEligible: false,
       eligibleLoanAmount: 0,
       maxLoanAmount: 0,
       reason: `Calculated eligibility (₹${Math.round(finalLoanAmount).toLocaleString('en-IN')}) is below Bajaj Finance minimum loan threshold of ₹1,00,000.`,
-      bank: 'Bajaj Finance'
+      bank: 'Bajaj Finance',
+      bankName: 'Bajaj Finance'
     };
   }
 
@@ -217,8 +229,11 @@ export const calculateBajajEligibility = (input) => {
   const finalEmi = calculateEMI(roundedSanction, currentRoi, tenureYears);
 
   return {
+    eligible: true,
     isEligible: true,
     bank: 'Bajaj Finance',
+    bankName: 'Bajaj Finance',
+    loanAmount: roundedSanction,
     eligibleLoanAmount: roundedSanction,
     maxLoanAmount: roundedSanction,
     interestRate: currentRoi,

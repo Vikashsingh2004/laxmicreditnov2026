@@ -247,7 +247,7 @@ export const calculateLntEligibility = (userData, adminBankConfig) => {
     ? Number(maxTenureOverride)
     : (isGovtEmployee && govtMaxTenure ? govtMaxTenure : (lntConfig.maxTenureByCategory[mappedCategory] || 72));
 
-  const cappedTenureMonths = Math.min(maxTenureMonths, 72);
+  const cappedTenureMonths = maxTenureMonths;
   const cappedTenureYears = cappedTenureMonths / 12;
 
   // 10. MULTIPLIER & FOIR ELIGIBILITY AMOUNTS
@@ -318,6 +318,8 @@ export const calculateLntEligibility = (userData, adminBankConfig) => {
     interestRate: finalInterestRate,
     loanTenure: cappedTenureYears,
     loanTenureMonths: cappedTenureMonths,
+    maxTenure: Math.round(cappedTenureMonths / 12),
+    maxTenureMonths: cappedTenureMonths,
     monthlyEMI: Math.round(monthlyEMI),
     multiplier: multiplier,
     foirPercentage: foirPercentage,

@@ -395,6 +395,8 @@ export const calculateIciciEligibility = (userData) => {
     appliedRoi: effectiveInterestRate,
     loanTenure: cappedTenureYears,
     loanTenureMonths: cappedTenureMonths,
+    maxTenure: Math.round(cappedTenureMonths / 12),
+    maxTenureMonths: cappedTenureMonths,
     tenureCapped: cappedTenureMonths !== (loanTenure * 12),
     requestedTenure: loanTenure,
     requestedTenureMonths: loanTenure * 12,

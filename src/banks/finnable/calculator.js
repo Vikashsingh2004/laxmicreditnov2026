@@ -33,7 +33,8 @@ export const calculateFinnableEligibility = (userData = {}, configOverride = {})
     totalWorkExperience = 12,
     city = 'Tier 1',
     state = '',
-    finnableScore = 650
+    finnableScore = 650,
+    maxTenureOverride = null
   } = userData;
 
   // Merge dynamic admin config overrides if available
@@ -144,7 +145,7 @@ export const calculateFinnableEligibility = (userData = {}, configOverride = {})
   const maxLoanAllowed = isNtc ? ntcMaxCap : defaultMaxCap;
 
   const ntcMaxTenure = cfg.ntcMaxTenureMonths || 36;
-  const defaultMaxTenure = cfg.maxTenureMonths || 60;
+  const defaultMaxTenure = maxTenureOverride || cfg.maxTenureMonths || 60;
   const maxTenureMonthsAllowed = isNtc ? ntcMaxTenure : defaultMaxTenure;
 
   // 7. Obligations & Available EMI
@@ -213,6 +214,8 @@ export const calculateFinnableEligibility = (userData = {}, configOverride = {})
     interestRate: appliedRoi,
     loanTenure: tenureYears,
     loanTenureMonths: calculationTenureMonths,
+    maxTenure: Math.round(maxTenureMonthsAllowed / 12),
+    maxTenureMonths: maxTenureMonthsAllowed,
     requestedTenureMonths,
     monthlyEMI,
     availableEMI: Math.round(availableEMI),

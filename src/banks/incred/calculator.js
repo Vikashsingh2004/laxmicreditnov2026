@@ -139,6 +139,8 @@ export const calculateIncredEligibility = (inputData = {}) => {
     interestRate: Number(rate),
     loanTenure: tenureYears,
     loanTenureMonths: totalMonths,
+    maxTenure: Math.round(maxTenureYears),
+    maxTenureMonths: Math.round(maxTenureYears * 12),
     foirPercentage: effectiveFoir,
     multiplier: null, // FOIR Only
     isFoirOnly: true

@@ -323,6 +323,8 @@ export const calculateAxisFinEligibility = (userData) => {
     interestRate: effectiveInterestRate,
     loanTenure: cappedTenureYears,
     loanTenureMonths: cappedTenureMonths,
+    maxTenure: Math.round(cappedTenureMonths / 12),
+    maxTenureMonths: cappedTenureMonths,
     tenureCapped: tenureCapped,
     requestedTenure: loanTenure,
     requestedTenureMonths: requestedTenureMonths,

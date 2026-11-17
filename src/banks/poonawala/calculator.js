@@ -403,6 +403,8 @@ export const calculatePoonawalaEligibility = (userData) => {
     interestRate: finalInterestRate,
     loanTenure: cappedTenureYears,
     loanTenureMonths: cappedTenureMonths,
+    maxTenure: Math.round(cappedTenureMonths / 12),
+    maxTenureMonths: cappedTenureMonths,
     tenureCapped: tenureCapped,
     requestedTenure: loanTenure,
     requestedTenureMonths: requestedTenureMonths,

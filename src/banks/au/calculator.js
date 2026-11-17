@@ -398,6 +398,8 @@ export const calculateAuEligibility = (inputData = {}) => {
     tenureYears: Math.round(tenureYears * 10) / 10,
     loanTenureMonths: finalTenureMonths,
     tenureMonths: finalTenureMonths,
+    maxTenure: Math.round(configuredMaxTenure / 12),
+    maxTenureMonths: configuredMaxTenure,
     foirPercentage: effectiveFoir,
     foir: Math.round(effectiveFoir * 100),
     multiplier: effectiveMultiplier,
