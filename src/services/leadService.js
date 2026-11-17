@@ -30,12 +30,72 @@ export const getBankShortName = (bankName) => {
 export const STANDARD_ALL_BANKS_SHORT = 'HDFC, ICICI, Kotak, Tata, IDFC, Poonawala, Axis, IndusInd, Bandhan, Chola, Piramal, Shriram';
 
 export const formatBanksShortList = (banksInput) => {
-    if (!banksInput || banksInput === 'All Applicable' || banksInput === 'None Selected' || banksInput === 'All Eligible') {
+    if (!banksInput || banksInput === 'None Selected' || banksInput === 'Pending Customer Selection' || banksInput === 'None') {
+        return '';
+    }
+    if (banksInput === 'All Applicable' || banksInput === 'All Eligible') {
         return STANDARD_ALL_BANKS_SHORT;
     }
     const arr = Array.isArray(banksInput) ? banksInput : String(banksInput).split(',');
     const shortNames = arr.map(b => getBankShortName(b)).filter(Boolean);
-    return shortNames.length > 0 ? shortNames.join(', ') : STANDARD_ALL_BANKS_SHORT;
+    return shortNames.length > 0 ? shortNames.join(', ') : '';
+};
+
+/**
+ * Strict Genuine Customer Lead Verification
+ * Rejects test entries, dummy numbers, bot scripts, and placeholders
+ */
+export const isGenuineCustomerLead = (lead) => {
+    if (!lead) return false;
+
+    // 1. Mobile verification: strictly 10 digits starting with 6, 7, 8, or 9
+    const mobile = String(lead.mobile || '').replace(/\D/g, '');
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+        return false;
+    }
+
+    // Reject obvious test / mock / repeating numbers
+    const dummyNumbers = new Set([
+        '9876543210', '1234567890', '9999999999', '8888888888', '7777777777',
+        '6666666666', '9898989898', '9123456789', '9000000000', '9800000000',
+        '9876501234', '9812345678', '9876598765'
+    ]);
+    if (dummyNumbers.has(mobile)) {
+        return false;
+    }
+
+    // Reject all-identical digits e.g. 9999999999
+    if (/^(\d)\1{9}$/.test(mobile)) {
+        return false;
+    }
+
+    // 2. Name verification: must have at least 2 real alphabetic characters
+    const rawName = String(lead.name || '').trim();
+    if (rawName.length < 2) {
+        return false;
+    }
+    const lowerName = rawName.toLowerCase();
+    const dummyNames = [
+        'customer', 'anonymous', 'anonymous customer', 'test', 'tester', 'dummy', 
+        'applicant', 'user', 'admin', 'na', 'n/a', 'none', 'asdf', 'qwerty', 'xyz',
+        'test user', 'dummy user', 'testing'
+    ];
+    if (dummyNames.includes(lowerName)) {
+        return false;
+    }
+
+    // Reject if name has no letters at all (e.g. "12345")
+    if (!/[a-zA-Z]/.test(rawName)) {
+        return false;
+    }
+
+    // 3. Basic salary check: must be at least ₹8,000 (minimum statutory wage)
+    const salary = Number(lead.basicSalary || lead.totalIncome || 0);
+    if (salary < 8000) {
+        return false;
+    }
+
+    return true;
 };
 
 /**
@@ -54,6 +114,39 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
         const subData = submissionData || {};
         const metaData = subData._metadata || {};
 
+        // ── Unified Customer Info ────────────────────────────────────────────
+        const customerName = (rawForm.customerName || metaData.customerName || subData.customerName || '').trim();
+        const mobileNumber = (rawForm.mobileNumber || metaData.mobileNumber || subData.mobileNumber || '').trim();
+        const employmentType = rawForm.employmentType || metaData.employmentType || subData.employmentType || 'salaried';
+
+        let companyName = (rawForm.companyName || metaData.companyName || subData.companyName || '').trim();
+        if (employmentType === 'government') {
+            companyName = companyName && companyName !== 'LaxmiCredit'
+                ? companyName
+                : 'Government Employee (Central/State)';
+        } else if (!companyName || companyName.toLowerCase() === 'laxmicredit') {
+            companyName = 'Private Enterprise (Unlisted)';
+        }
+
+        const category = rawForm.category || metaData.category || subData.category || (employmentType === 'government' ? 'GOVT' : 'B');
+        const basicSalary = Number(rawForm.basicSalary || metaData.basicSalary || subData.basicSalary || 0);
+        const monthlyIncome = Number(subData.monthlyIncome || rawForm.totalMonthlyIncome || rawForm.monthlyIncome || basicSalary || 0);
+        const existingEMI = Number(subData.existingEMI || rawForm.existingEMI || 0);
+
+        // ── STRICT GENUINE LEAD FILTER ────────────────────────────────────────
+        // Reject mock/dummy leads, test scripts, and placeholder submissions
+        const testPayload = {
+            name: customerName,
+            mobile: mobileNumber,
+            basicSalary: basicSalary,
+            totalIncome: monthlyIncome
+        };
+
+        if (!isGenuineCustomerLead(testPayload)) {
+            console.log(`ℹ️ [leadService] Ignored non-genuine/test lead entry: "${customerName}" (${mobileNumber})`);
+            return null;
+        }
+
         // ── Build existing loans summary safely ──────────────────────────────
         const existingLoans = subData.loansForBT || metaData.existingLoans || rawForm.existingLoans || [];
         const loansArr = Array.isArray(existingLoans) ? existingLoans : [];
@@ -68,21 +161,23 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
             .map(l => `${l.lender || 'Unknown'} (Used: ₹${l.creditLimitUsed || 0})`)
             .join(' | ') || 'None';
 
-        // ── Unified Customer Info ────────────────────────────────────────────
-        const customerName = rawForm.customerName || metaData.customerName || subData.customerName || 'Anonymous Customer';
-        const mobileNumber = rawForm.mobileNumber || metaData.mobileNumber || subData.mobileNumber || '';
-        const companyName = rawForm.companyName || metaData.companyName || subData.companyName || '';
-        const category = rawForm.category || metaData.category || subData.category || 'General';
-        const basicSalary = Number(rawForm.basicSalary || metaData.basicSalary || subData.basicSalary || 0);
-        const monthlyIncome = Number(subData.monthlyIncome || rawForm.totalMonthlyIncome || rawForm.monthlyIncome || basicSalary || 0);
-        const existingEMI = Number(subData.existingEMI || rawForm.existingEMI || 0);
-
         // Balance Transfer is only YES if customer actually has existing loans or non-zero EMI
         const hasLiabilities = loansArr.length > 0 || existingEMI > 0;
         const wantsBT = ((subData.wantsBT || rawForm.wantsBT) && hasLiabilities) ? 'Yes' : 'No';
 
-        // Format eligible banks short list
-        const formattedEligibleBanks = formatBanksShortList(eligibleBanks || subData.selectedBanks || rawForm.selectedBanks || '');
+        // Format eligible banks list
+        const eligibleBanksArr = Array.isArray(eligibleBanks) 
+            ? eligibleBanks 
+            : (eligibleBanks ? String(eligibleBanks).split(',') : []);
+        const formattedEligibleBanks = formatBanksShortList(eligibleBanksArr);
+
+        // Selected banks: ONLY set if customer actually selected banks
+        const selectedBanksArr = Array.isArray(subData.selectedBanks) 
+            ? subData.selectedBanks 
+            : (Array.isArray(rawForm.selectedBanks) ? rawForm.selectedBanks : []);
+        const formattedSelectedBanks = selectedBanksArr.length > 0 
+            ? formatBanksShortList(selectedBanksArr) 
+            : 'Pending Customer Selection';
 
         const now = new Date();
         const leadId = Date.now();
@@ -103,7 +198,7 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
             totalIncome: monthlyIncome,
             company: companyName,
             category: category,
-            employment: rawForm.employmentType || metaData.employmentType || subData.employmentType || 'Salaried',
+            employment: employmentType,
             existingEMI: existingEMI,
             wantsBT: wantsBT,
             personalLoans: personalLoans,
@@ -114,8 +209,8 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
             salaryMode: rawForm.salaryMode || metaData.salaryMode || subData.salaryMode || 'Bank Transfer',
             maritalStatus: rawForm.maritalStatus || metaData.maritalStatus || subData.maritalStatus || '',
             livingStatus: rawForm.livingStatus || metaData.livingStatus || subData.livingStatus || '',
-            status: 'New',
-            selectedBanks: formattedEligibleBanks,
+            status: selectedBanksArr.length > 0 ? 'Selected' : 'New',
+            selectedBanks: formattedSelectedBanks,
             eligibleBanks: formattedEligibleBanks
         };
 

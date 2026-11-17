@@ -445,14 +445,29 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
     }
 
     // ── Guard: Name & Mobile required ──────────────────────────────────────
-    if (!formData.customerName.trim()) {
+    const trimmedName = formData.customerName.trim();
+    if (!trimmedName || trimmedName.length < 2) {
       setValidationError('Please enter your full name to continue.');
       document.getElementById('customerName')?.focus();
       return;
     }
+    const lowerName = trimmedName.toLowerCase();
+    const disallowedNames = ['test', 'tester', 'dummy', 'customer', 'anonymous', 'applicant', 'admin', 'user', 'asdf', 'qwerty'];
+    if (disallowedNames.includes(lowerName)) {
+      setValidationError('Please enter your genuine legal name as per PAN card.');
+      document.getElementById('customerName')?.focus();
+      return;
+    }
+
+    const cleanMobile = formData.mobileNumber.replace(/\D/g, '');
     const mobileRegex = /^[6-9][0-9]{9}$/;
-    if (!mobileRegex.test(formData.mobileNumber)) {
+    if (!mobileRegex.test(cleanMobile)) {
       setValidationError('Please enter a valid 10-digit mobile number to continue.');
+      document.getElementById('mobileNumber')?.focus();
+      return;
+    }
+    if (/^(\d)\1{9}$/.test(cleanMobile) || cleanMobile === '9876543210' || cleanMobile === '1234567890' || cleanMobile === '9898989898') {
+      setValidationError('Please enter a genuine, active 10-digit mobile number.');
       document.getElementById('mobileNumber')?.focus();
       return;
     }

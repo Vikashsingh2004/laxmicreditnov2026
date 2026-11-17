@@ -63,16 +63,21 @@ function CustomerFacingApp() {
     const hasActiveCards = Boolean(submissionData?.hasCreditCards ?? rawFormData?.hasCreditCards);
 
     // Form unified reliable customer data object
+    const isGovt = Boolean(submissionData?.employmentType === 'government' || rawFormData?.employmentType === 'government');
+    const resolvedCompany = isGovt
+      ? (rawFormData?.companyName?.trim() || submissionData?.companyName?.trim() || 'Government Employee (Central/State)')
+      : (rawFormData?.companyName?.trim() || submissionData?.companyName?.trim() || submissionData?._metadata?.companyName?.trim() || 'Private Enterprise (Unlisted)');
+
     const combinedData = {
       ...(rawFormData || {}),
       ...(submissionData || {}),
       ...(submissionData?._metadata || {}),
       mode: currentMode,
       productMode: currentMode,
-      customerName: rawFormData?.customerName || submissionData?.customerName || submissionData?._metadata?.customerName || 'Customer',
-      mobileNumber: rawFormData?.mobileNumber || submissionData?.mobileNumber || submissionData?._metadata?.mobileNumber || '',
-      companyName: rawFormData?.companyName || submissionData?.companyName || submissionData?._metadata?.companyName || 'LaxmiCredit',
-      category: rawFormData?.category || submissionData?.category || submissionData?._metadata?.category || 'B',
+      customerName: (rawFormData?.customerName || submissionData?.customerName || submissionData?._metadata?.customerName || '').trim(),
+      mobileNumber: (rawFormData?.mobileNumber || submissionData?.mobileNumber || submissionData?._metadata?.mobileNumber || '').trim(),
+      companyName: resolvedCompany,
+      category: isGovt ? 'GOVT' : (rawFormData?.category || submissionData?.category || submissionData?._metadata?.category || 'B'),
       basicSalary: rawFormData?.basicSalary || submissionData?.basicSalary || 0,
       age: rawFormData?.age || submissionData?.age || '',
       city: rawFormData?.city || submissionData?.city || '',
@@ -99,13 +104,6 @@ function CustomerFacingApp() {
     try {
       localStorage.setItem('laxmi_last_form_data', JSON.stringify(combinedData));
     } catch (e) {}
-
-    // Save lead into database immediately in background (non-blocking for instant calculation)
-    try {
-      saveLead(combinedData, submissionData).catch(saveErr => console.warn('Non-blocking lead save notice:', saveErr));
-    } catch (saveErr) {
-      console.warn('Non-blocking lead save notice:', saveErr);
-    }
 
     try {
       console.log('='.repeat(80));

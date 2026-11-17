@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../config/firebase.js';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { formatBanksShortList } from '../../services/leadService.js';
 import './LeadManager.css';
 
@@ -279,23 +279,39 @@ const LeadManager = ({ userRole }) => {
         if (!window.confirm('⚠️ ARE YOU SURE? This will permanently delete ALL lead records from the dashboard and database.')) {
             return;
         }
+        setLoading(true);
         try {
             const leadsSnap = await getDocs(collection(db, 'leads'));
-            const deletePromises = leadsSnap.docs.map(d => deleteDoc(doc(db, 'leads', d.id)));
-            await Promise.all(deletePromises);
+            const batchSize = 250;
+            let count = 0;
+            let batch = writeBatch(db);
+
+            for (const document of leadsSnap.docs) {
+                batch.delete(doc(db, 'leads', document.id));
+                count++;
+                if (count % batchSize === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                }
+            }
+            if (count % batchSize !== 0) {
+                await batch.commit();
+            }
 
             localStorage.removeItem('laxmi_leads');
             localStorage.removeItem('laxmi_customer_database');
             setLeads([]);
             setSelectedLeadIds(new Set());
-            alert('✅ All dumb lead details have been deleted.');
+            alert(`✅ All leads (${count} records) have been permanently deleted from database and storage.`);
         } catch (err) {
             console.error('Error clearing leads:', err);
             localStorage.removeItem('laxmi_leads');
             localStorage.removeItem('laxmi_customer_database');
             setLeads([]);
             setSelectedLeadIds(new Set());
-            alert('✅ Dashboard leads cleared.');
+            alert('✅ Local lead records cleared.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -713,9 +729,23 @@ const LeadManager = ({ userRole }) => {
                                 </td>
                                 <td>
                                     <div className="lead-banks">
-                                        {formatBanksShortList(lead?.selectedBanks || lead?.eligibleBanks).split(',').map((bank, index) => (
-                                            bank.trim() && <span key={index} className="bank-tag">{bank.trim()}</span>
-                                        ))}
+                                        {lead?.status === 'Selected' && lead?.selectedBanks && lead.selectedBanks !== 'Pending Customer Selection' ? (
+                                            <>
+                                                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', marginBottom: '2px' }}>✓ Chosen by Customer:</div>
+                                                {formatBanksShortList(lead.selectedBanks).split(',').map((bank, index) => (
+                                                    bank.trim() && <span key={index} className="bank-tag" style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', fontWeight: 700 }}>{bank.trim()}</span>
+                                                ))}
+                                            </>
+                                        ) : lead?.eligibleBanks ? (
+                                            <>
+                                                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0284C7', marginBottom: '2px' }}>Pre-Approved:</div>
+                                                {formatBanksShortList(lead.eligibleBanks).split(',').map((bank, index) => (
+                                                    bank.trim() && <span key={index} className="bank-tag">{bank.trim()}</span>
+                                                ))}
+                                            </>
+                                        ) : (
+                                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Evaluating</span>
+                                        )}
                                     </div>
                                     <div className="lead-status-row">
                                         <select
@@ -1083,9 +1113,17 @@ const LeadManager = ({ userRole }) => {
                                     <p><strong>Credit Cards:</strong> {activeDetailLead?.creditCards || 'None recorded'}</p>
                                 </div>
                                 <div className="selected-banks-box">
-                                    <span className="detail-label">Shortlisted Banks:</span>
+                                    <span className="detail-label">
+                                        {activeDetailLead?.status === 'Selected' && activeDetailLead?.selectedBanks && activeDetailLead.selectedBanks !== 'Pending Customer Selection'
+                                            ? 'Customer Selected Banks:' 
+                                            : 'Pre-Approved Eligible Banks:'}
+                                    </span>
                                     <div className="lead-banks" style={{ marginTop: '8px' }}>
-                                        {formatBanksShortList(activeDetailLead?.selectedBanks || activeDetailLead?.eligibleBanks).split(',').map((bank, index) => (
+                                        {formatBanksShortList(
+                                            activeDetailLead?.status === 'Selected' && activeDetailLead?.selectedBanks && activeDetailLead.selectedBanks !== 'Pending Customer Selection'
+                                                ? activeDetailLead.selectedBanks
+                                                : (activeDetailLead?.eligibleBanks || activeDetailLead?.selectedBanks)
+                                        ).split(',').map((bank, index) => (
                                             bank.trim() && <span key={index} className="bank-tag">{bank.trim()}</span>
                                         ))}
                                     </div>
