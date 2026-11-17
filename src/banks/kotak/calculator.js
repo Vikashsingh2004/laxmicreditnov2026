@@ -126,6 +126,7 @@ export const calculateKotakEligibility = (userData) => {
     multiplierOverride,
     foirOverride,
     maxLoanOverride,
+    maxTenureOverride,
     // Balance Transfer fields
     isBTMode,
     loansForBT,
@@ -237,10 +238,12 @@ export const calculateKotakEligibility = (userData) => {
     };
   }
 
-  // Tenure handling (24 to 72 Months, Cat D max 60 Months)
-  let maxTenureForCategory = isGovtEmployee && govtMaxTenure 
-    ? govtMaxTenure 
-    : getCategoryMaxTenure(companyCategory);
+  // Tenure handling (24 to 72 Months, Cat D max 60 Months - Admin Override Supported)
+  let maxTenureForCategory = maxTenureOverride !== undefined && maxTenureOverride !== null
+    ? Number(maxTenureOverride)
+    : (isGovtEmployee && govtMaxTenure 
+        ? govtMaxTenure 
+        : getCategoryMaxTenure(companyCategory));
 
   const cappedTenureMonths = maxTenureForCategory;
   const cappedTenureYears = cappedTenureMonths / 12;
@@ -314,6 +317,10 @@ export const calculateKotakEligibility = (userData) => {
     interestRate: Number(finalInterestRate),
     tenure: cappedTenureYears,
     tenureMonths: cappedTenureMonths,
+    loanTenure: cappedTenureYears,
+    loanTenureMonths: cappedTenureMonths,
+    maxTenure: cappedTenureYears,
+    maxTenureMonths: cappedTenureMonths,
     emi: Math.round(emi),
     foir: Number((foirPercentage * 100).toFixed(1)),
     multiplier: multiplier,

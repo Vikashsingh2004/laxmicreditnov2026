@@ -322,7 +322,19 @@ const matchCategory = (cat1, cat2) => {
         ? `${calculatorInput.city}, ${calculatorInput.state}` 
         : (calculatorInput.city || calculatorInput.state);
       const adminAllConfig = getAllBankConfig(name, location);
-      let uPolicy = adminAllConfig.unifiedPolicy;
+
+      // Check direct localStorage policy_config_${id} or policy_config_${id}_${locationKey} first
+      const locationKey = (calculatorInput.state && calculatorInput.city) ? `${calculatorInput.state}-${calculatorInput.city}` : null;
+      let directStoredPolicy = null;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = (locationKey && localStorage.getItem(`policy_config_${id}_${locationKey}`)) ||
+                      localStorage.getItem(`policy_config_${id}`);
+          if (raw) directStoredPolicy = JSON.parse(raw);
+        }
+      } catch (e) {}
+
+      let uPolicy = directStoredPolicy || adminAllConfig.unifiedPolicy;
 
       // Bank Policy Fallback from Bank Policy Excel (BANKS POLICYS.xlsx) for ALL institutions
       if (!uPolicy) {
@@ -429,72 +441,11 @@ const matchCategory = (cat1, cat2) => {
           };
         }
 
-        // 2. Personal Loan BT Count Gate
-        let maxPlAllowed = adminAllConfig.btConfiguration?.maxPlBtCount ?? uPolicy?.demographics?.plBtAllowedCount;
-        if (maxPlAllowed === undefined) {
-          if (id === 'kotak' || id === 'smfg') maxPlAllowed = 999;
-          else if (id === 'axis' || id === 'axis-fin') maxPlAllowed = 7;
-          else if (id === 'tata' || id === 'lnt') maxPlAllowed = 6;
-          else if (id === 'axis-bank' || id === 'indusind' || id === 'poonawala') maxPlAllowed = 5;
-          else if (id === 'chola' || id === 'abfl') maxPlAllowed = 4;
-          else if (id === 'incred') maxPlAllowed = 0;
-          else maxPlAllowed = 3;
-        }
-        if (numPlBt > maxPlAllowed) {
-          return {
-            bankName: name,
-            eligible: false,
-            isBTMode: true,
-            btNotAllowed: true,
-            reason: `${name} allows maximum ${maxPlAllowed} Personal Loan(s) for Balance Transfer (${numPlBt} selected).`,
-            category: 'REJECTED'
-          };
-        }
+        // Note: In bank policy guidelines, "5 or 6" refers strictly to Salary Multipliers (e.g. 5x or 6x Monthly Salary),
+        // NOT counting the physical number of credit cards or personal loans.
+        // Therefore, multiple debts can be consolidated provided they clear the salary multiplier & FOIR tests below.
 
-        // 3. Credit Card BT Count Gate
-        let maxCcAllowed = adminAllConfig.btConfiguration?.maxCcBtCount ?? uPolicy?.demographics?.ccBtAllowedCount;
-        if (maxCcAllowed === undefined) {
-          if (id === 'axis' || id === 'axis-fin') maxCcAllowed = 7;
-          else if (id === 'tata' || id === 'chola' || id === 'poonawala') maxCcAllowed = 6;
-          else if (id === 'axis-bank' || id === 'abfl') maxCcAllowed = 5;
-          else if (id === 'idfc') maxCcAllowed = 3;
-          else if (id === 'piramal' || id === 'smfg') maxCcAllowed = 2;
-          else maxCcAllowed = 0;
-        }
-        if (numCcBt > maxCcAllowed) {
-          return {
-            bankName: name,
-            eligible: false,
-            isBTMode: true,
-            btNotAllowed: true,
-            reason: `${name} allows maximum ${maxCcAllowed} Credit Card(s) for Balance Transfer (${numCcBt} selected).`,
-            category: 'REJECTED'
-          };
-        }
-
-        // 4. Total Combined Case Capping Gate
-        let maxTotalBtCap = adminAllConfig.btConfiguration?.totalBtCaseCap ?? uPolicy?.demographics?.totalBtCaseCap;
-        if (maxTotalBtCap === undefined) {
-          if (id === 'kotak' || id === 'smfg') maxTotalBtCap = 999;
-          else if (id === 'poonawala') maxTotalBtCap = 8;
-          else if (id === 'axis' || id === 'axis-fin') maxTotalBtCap = 7;
-          else if (id === 'tata' || id === 'chola' || id === 'idfc' || id === 'abfl' || id === 'lnt') maxTotalBtCap = 6;
-          else if (id === 'axis-bank' || id === 'indusind') maxTotalBtCap = 5;
-          else if (id === 'incred') maxTotalBtCap = 0;
-          else maxTotalBtCap = 3;
-        }
-        if (totalBtCount > maxTotalBtCap) {
-          return {
-            bankName: name,
-            eligible: false,
-            isBTMode: true,
-            btNotAllowed: true,
-            reason: `${name} allows maximum ${maxTotalBtCap} total liabilities for Balance Transfer (${totalBtCount} selected).`,
-            category: 'REJECTED'
-          };
-        }
-
-        // 5. Piramal Finance Policy: 2 CC BT ALLOW WITH 3 PL BT (Standalone CC BT not allowed)
+        // Piramal Finance Policy: 2 CC BT ALLOW WITH 3 PL BT (Standalone CC BT not allowed)
         if (name.toLowerCase().includes('piramal') || id === 'piramal') {
           if (numCcBt > 0 && numPlBt === 0) {
             return {
@@ -597,21 +548,59 @@ const matchCategory = (cat1, cat2) => {
         }
       }
 
-      // 2.5 BT CREDIT CARD MULTIPLIER GATE
-      if (calculatorInput.isBTMode && adminAllConfig.btConfiguration?.maxCreditCardBTMultiplier) {
-        const btCreditCardPOS = calculatorInput.loansForBT
-            .filter(loan => loan.type === 'Credit Card')
-            .reduce((sum, loan) => sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || 0), 0);
+      // 2.5 BT CREDIT CARD & TOTAL BT SALARY MULTIPLIER GATE (Bank Policy: 5x or 6x Salary, NOT count of CC/loans)
+      if (calculatorInput.isBTMode) {
+        const isAbfl = id === 'abfl' || name.toLowerCase().includes('aditya birla') || name.toLowerCase().includes('abfl');
+        const isChola = id === 'chola' || id === 'cholamandalam' || name.toLowerCase().includes('chola');
+        const isBajaj = id === 'bajaj' || name.toLowerCase().includes('bajaj');
+        const isTata = id === 'tata' || name.toLowerCase().includes('tata');
+        const isAxisFin = id === 'axis' || id === 'axis-fin' || name.toLowerCase().includes('axis finance');
+        const isAxisBank = id === 'axis-bank' || name === 'Axis Bank';
+        const isPoonawala = id === 'poonawala' || name.toLowerCase().includes('poonawala');
+
+        let ccBtSalaryMultiplier = adminAllConfig.btConfiguration?.maxCreditCardBTMultiplier ??
+          uPolicy?.demographics?.maxCreditCardBTMultiplier ??
+          uPolicy?.abflDemographics?.maxCcBtSalaryMultiplier;
         
-        const maxAllowedCCPOS = calculatorInput.monthlyIncome * adminAllConfig.btConfiguration.maxCreditCardBTMultiplier;
-        
+        if (ccBtSalaryMultiplier === undefined || ccBtSalaryMultiplier === null || ccBtSalaryMultiplier === 0) {
+          if (isAbfl || isChola || isBajaj || isTata || isAxisFin) ccBtSalaryMultiplier = 6;
+          else if (isAxisBank) ccBtSalaryMultiplier = 5;
+          else if (isPoonawala) ccBtSalaryMultiplier = 4;
+          else ccBtSalaryMultiplier = 6;
+        }
+
+        const btCreditCards = (calculatorInput.loansForBT || [])
+          .filter(loan => {
+            const t = String(loan.type || loan.loanType || '').toLowerCase();
+            return t.includes('credit') || t.includes('card') || t === 'cc';
+          });
+        const btCreditCardPOS = btCreditCards.reduce((sum, loan) => 
+          sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || 0), 0);
+
+        const maxAllowedCCPOS = calculatorInput.monthlyIncome * ccBtSalaryMultiplier;
+
         if (btCreditCardPOS > maxAllowedCCPOS) {
-           return { 
-               bankName: name, 
-               eligible: false, 
-               reason: `BT Rejected: Credit Card Outstanding (₹${btCreditCardPOS.toLocaleString()}) exceeds the limit of ${adminAllConfig.btConfiguration.maxCreditCardBTMultiplier}x monthly income (Max Allowed: ₹${maxAllowedCCPOS.toLocaleString()}).`, 
-               category: 'REJECTED' 
-           };
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `BT Rejected: Total Credit Card Outstanding (₹${Math.round(btCreditCardPOS).toLocaleString()}) exceeds ${ccBtSalaryMultiplier} times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedCCPOS).toLocaleString()}).`,
+            category: 'REJECTED'
+          };
+        }
+
+        // Total BT Outstanding vs 6x Monthly Salary (Specifically for ABFL and standard 6x salary policy)
+        if (isAbfl && calculatorInput.btTotalOutstanding > (calculatorInput.monthlyIncome * 6)) {
+          const maxAllowedBT = calculatorInput.monthlyIncome * 6;
+          return {
+            bankName: name,
+            eligible: false,
+            isBTMode: true,
+            btNotAllowed: true,
+            reason: `BT Rejected: Total BT Outstanding (₹${Math.round(calculatorInput.btTotalOutstanding).toLocaleString()}) exceeds 6 times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedBT).toLocaleString()}).`,
+            category: 'REJECTED'
+          };
         }
       }
 
@@ -2119,29 +2108,30 @@ const matchCategory = (cat1, cat2) => {
         }
 
         // 4. Dynamic Tenure match (Tab 3 in Admin)
-        if (Array.isArray(uPolicy.tenureRules)) {
-          const matchedTenure = uPolicy.tenureRules.find(t => matchCategory(t.category, bankCategory));
-          if (matchedTenure && matchedTenure.maxMonths) {
-            let maxM = Number(matchedTenure.maxMonths);
-            const isCibilMinusOne = calculatorInput.creditScore === -1 || 
-                                    calculatorInput.creditScore === '-1' || 
-                                    calculatorInput.cibilScore === -1 || 
-                                    calculatorInput.cibilScore === '-1';
-            const isIndusind = name === 'IndusInd Bank' || id === 'indusind';
-            if (isIndusind && isCibilMinusOne) {
-              maxM = Math.min(maxM, 48); // Excel Policy: CIBIL -1 H TO 48 TENURE
-            }
-            // Finnable CIBIL -1 capped to 36 months
-            if ((name.toLowerCase().includes('finnable') || id === 'finnable') && isCibilMinusOne) {
-              maxM = Math.min(maxM, 36);
-            }
-            // Bajaj ₹1L+ salary: up to 108 months
-            const income = calculatorInput.monthlyIncome || calculatorInput.basicSalary || 0;
-            if ((name.toLowerCase().includes('bajaj') || id === 'bajaj') && income >= 100000) {
-              maxM = Math.max(maxM, 108);
-            }
-            bankInput.maxTenureOverride = maxM;
+        if (Array.isArray(uPolicy?.tenureRules) && uPolicy.tenureRules.length > 0) {
+          const matchedTenure = uPolicy.tenureRules.find(t => matchCategory(t.category || t.tier, bankCategory));
+          let maxM = matchedTenure?.maxMonths ? Number(matchedTenure.maxMonths) : Number(uPolicy.tenureRules[0]?.maxMonths || 84);
+          const isCibilMinusOne = calculatorInput.creditScore === -1 || 
+                                  calculatorInput.creditScore === '-1' || 
+                                  calculatorInput.cibilScore === -1 || 
+                                  calculatorInput.cibilScore === '-1';
+          const isIndusind = name === 'IndusInd Bank' || id === 'indusind';
+          if (isIndusind && isCibilMinusOne) {
+            maxM = Math.min(maxM, 48); // Excel Policy: CIBIL -1 H TO 48 TENURE
           }
+          // Finnable CIBIL -1 capped to 36 months
+          if ((name.toLowerCase().includes('finnable') || id === 'finnable') && isCibilMinusOne) {
+            maxM = Math.min(maxM, 36);
+          }
+          // Bajaj ₹1L+ salary: up to 108 months
+          const income = calculatorInput.monthlyIncome || calculatorInput.basicSalary || 0;
+          if ((name.toLowerCase().includes('bajaj') || id === 'bajaj') && income >= 100000) {
+            maxM = Math.max(maxM, 108);
+          }
+          bankInput.maxTenureOverride = maxM;
+        } else if (adminAllConfig.tenureRules?.categoryBasedMaxTenure) {
+          const catM = adminAllConfig.tenureRules.categoryBasedMaxTenure[bankCategory] || adminAllConfig.tenureRules.maxTenureMonths;
+          if (catM) bankInput.maxTenureOverride = Number(catM);
         }
       } else if (adminAllConfig.interestRates && !govtPolicy) {
         const catRate = adminAllConfig.interestRates.categoryRates?.[bankCategory] || adminAllConfig.interestRates.defaultRate;
@@ -2228,47 +2218,22 @@ const matchCategory = (cat1, cat2) => {
         return enhanced;
       };
 
-      const isIciciInst = name.toLowerCase().includes('icici') || id === 'icici';
-      if (isIciciInst && result) {
-        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 0.8);
-      }
-
-      const isHdfcInst = name.toLowerCase().includes('hdfc') || id === 'hdfc';
-      if (isHdfcInst && result) {
-        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 0.5);
-      }
-
-      const isIndusindInst = name === 'IndusInd Bank' || id === 'indusind';
-      if (isIndusindInst && result) {
-        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 1.0);
+      // Specific Processing Fee determination without early return (allowing dynamic admin policy enforcement across all banks)
+      let specificPf = adminAllConfig.feesAndCharges?.processingFeePercentage ?? null;
+      if (specificPf === null) {
+        if (isIciciInst) specificPf = 0.8;
+        else if (isHdfcInst) specificPf = 0.5;
+        else if (isIndusindInst) specificPf = 1.0;
+        else if (isFinnableInst) specificPf = 2.5;
+        else if (isIdfcInst) specificPf = 1.2;
+        else if (isLntInst) specificPf = 2.0;
+        else if (isPiramalInst) specificPf = 0.75;
+        else if (isSmfgInst) specificPf = ((result?.loanAmount || 0) < 300000 ? 3.5 : 2.5);
       }
 
       if (isFinnableInst && result) {
-        const finnableRes = {
-          ...result,
-          form16Required: result.details?.isForm16Required || (result.loanAmount >= 500000),
-          form16Note: (result.details?.isForm16Required || result.loanAmount >= 500000) ? 'Form 16 verification is required for loan amounts ≥ ₹5 Lakhs.' : null
-        };
-        return buildEnhancedResult(finnableRes, adminAllConfig.feesAndCharges?.processingFeePercentage || 2.5);
-      }
-
-      const isIdfcInst = name.toLowerCase().includes('idfc') || id === 'idfc';
-      if (isIdfcInst && result) {
-        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 1.2);
-      }
-
-      if (isLntInst && result) {
-        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 2.0);
-      }
-
-      const isPiramalInst = name.toLowerCase().includes('piramal') || id === 'piramal';
-      if (isPiramalInst && result) {
-        return buildEnhancedResult(result, adminAllConfig.feesAndCharges?.processingFeePercentage || 0.75);
-      }
-
-      if (isSmfgInst && result) {
-        const pfPct = adminAllConfig.feesAndCharges?.processingFeePercentage || (result.loanAmount < 300000 ? 3.5 : 2.5);
-        return buildEnhancedResult(result, pfPct);
+        result.form16Required = result.details?.isForm16Required || (result.loanAmount >= 500000);
+        result.form16Note = (result.details?.isForm16Required || result.loanAmount >= 500000) ? 'Form 16 verification is required for loan amounts ≥ ₹5 Lakhs.' : null;
       }
 
       // 🚀 ENFORCE AND RECALCULATE DYNAMIC ADMIN POLICY PARAMETERS (FOIR, Multiplier, Rate, Tenures)
@@ -2287,85 +2252,56 @@ const matchCategory = (cat1, cat2) => {
 
         const monthlyIncome = calculatorInput.monthlyIncome || calculatorInput.basicSalary || 0;
 
-        // Tenure calculations
-        let tenureMonths = calculatorInput.loanTenure ? (calculatorInput.loanTenure * 12) : 60;
-        if (bankInput.maxTenureOverride) {
-          tenureMonths = Math.min(tenureMonths, Number(bankInput.maxTenureOverride));
-        } else if (result.loanTenureMonths) {
-          tenureMonths = Math.min(tenureMonths, result.loanTenureMonths);
-        }
-
-        // Tata Capital Excel Policy: Min 24 months, Max 72 or 84 months (Cat B > 75k Sal: 84)
-        if (isTataInst) {
-          tenureMonths = Math.max(24, tenureMonths);
-          const catUpper = String(bankCategory || '').toUpperCase();
-          if (catUpper.includes('SUPER') || catUpper === 'A' || catUpper === 'GOVT' || (catUpper === 'B' && monthlyIncome > 75000)) {
-            tenureMonths = Math.min(tenureMonths, 84);
-          } else if (catUpper === 'B') {
-            tenureMonths = Math.min(tenureMonths, 72);
+        // Resolve maximum permissible tenure directly from Admin Dashboard / Policy
+        let maxAllowedTenureMonths = bankInput.maxTenureOverride;
+        if (!maxAllowedTenureMonths) {
+          if (isTataInst) {
+            const catUpper = String(bankCategory || '').toUpperCase();
+            if (catUpper.includes('SUPER') || catUpper === 'A' || catUpper === 'GOVT' || (catUpper === 'B' && monthlyIncome > 75000)) maxAllowedTenureMonths = 84;
+            else if (catUpper === 'B') maxAllowedTenureMonths = 72;
+            else maxAllowedTenureMonths = 60;
+          } else if (isAxisFinInst) {
+            const catUpper = String(bankCategory || '').toUpperCase();
+            if (catUpper.includes('SUPER') || catUpper === 'GOVT') maxAllowedTenureMonths = 84;
+            else if (catUpper === 'A' || catUpper === 'B') maxAllowedTenureMonths = 72;
+            else maxAllowedTenureMonths = 60;
+          } else if (isPoonawalaInst) {
+            const catUpper = String(bankCategory || '').toUpperCase();
+            if (catUpper.includes('SUPER') || catUpper === 'A' || catUpper === 'GOVT') maxAllowedTenureMonths = 84;
+            else maxAllowedTenureMonths = 72;
+          } else if (isAbflInst) {
+            const catUpper = String(bankCategory || '').toUpperCase();
+            if (catUpper === 'D') maxAllowedTenureMonths = 60;
+            else if (catUpper === 'C') maxAllowedTenureMonths = 72;
+            else maxAllowedTenureMonths = 84;
+          } else if (isFinnableInst) {
+            maxAllowedTenureMonths = isNtc ? 36 : 60;
           } else {
-            tenureMonths = Math.min(tenureMonths, 60);
-          }
-        }
-        // Axis Finance Excel Policy: Max 84/72/60 Months (Super A/Govt: 84, Cat A: 72, Cat B: 72, Cat C/D: 60)
-        if (isAxisFinInst) {
-          tenureMonths = Math.max(12, tenureMonths);
-          const catUpper = String(bankCategory || '').toUpperCase();
-          if (catUpper.includes('SUPER') || catUpper === 'GOVT') {
-            tenureMonths = Math.min(tenureMonths, 84);
-          } else if (catUpper === 'A' || catUpper === 'B') {
-            tenureMonths = Math.min(tenureMonths, 72);
-          } else {
-            tenureMonths = Math.min(tenureMonths, 60);
-          }
-        }
-        // Poonawalla Fincorp Excel Policy: 12 to 84 Months (Cat A/Govt: 84M, Cat B, C, D: 72M)
-        if (isPoonawalaInst) {
-          tenureMonths = Math.max(12, tenureMonths);
-          const catUpper = String(bankCategory || '').toUpperCase();
-          if (catUpper.includes('SUPER') || catUpper === 'A' || catUpper === 'GOVT') {
-            tenureMonths = Math.min(tenureMonths, 84);
-          } else {
-            tenureMonths = Math.min(tenureMonths, 72);
-          }
-        }
-        // Aditya Birla Finance Excel Policy: 12 to 84 Months (Cat C: 72M, Cat D: 60M)
-        if (isAbflInst) {
-          tenureMonths = Math.max(12, tenureMonths);
-          const catUpper = String(bankCategory || '').toUpperCase();
-          if (catUpper === 'D') {
-            tenureMonths = Math.min(tenureMonths, 60);
-          } else if (catUpper === 'C') {
-            tenureMonths = Math.min(tenureMonths, 72);
-          } else {
-            tenureMonths = Math.min(tenureMonths, 84);
-          }
-        }
-        // Finnable Finance Excel Policy: 6 to 60 Months (NTC capped to 36 Months)
-        if (isFinnableInst) {
-          tenureMonths = Math.max(6, Math.min(tenureMonths, 60));
-          if (isNtc) {
-            tenureMonths = Math.min(tenureMonths, 36);
+            maxAllowedTenureMonths = result.loanTenureMonths || result.tenureMonths || 60;
           }
         }
 
-        // IndusInd Bank & Finnable Excel Policy: CIBIL = -1 (New to Credit) tenure capping
+        // Special caps like NTC
         if ((name === 'IndusInd Bank' || id === 'indusind') && isNtc) {
-          tenureMonths = Math.min(tenureMonths, 48); // IndusInd -1 capped to 48 months
+          maxAllowedTenureMonths = Math.min(maxAllowedTenureMonths, 48);
         }
-        if ((name.toLowerCase().includes('finnable') || id === 'finnable') && isNtc) {
-          tenureMonths = Math.min(tenureMonths, 36); // Finnable -1 capped to 36 months
+        if (isFinnableInst && isNtc) {
+          maxAllowedTenureMonths = Math.min(maxAllowedTenureMonths, 36);
         }
-        // Bajaj Finance Excel Policy: 108 Months for ₹1L+ Salary, else 96 Months
-        if (name.toLowerCase().includes('bajaj') || id === 'bajaj') {
-          const maxBajajTenure = monthlyIncome >= 100000 ? 108 : 96;
-          tenureMonths = Math.min(tenureMonths, maxBajajTenure);
-        }
-        // AU Small Finance Bank Excel Policy: Max 60 Months (5 Years)
         if (name.toLowerCase().includes('au ') || id === 'au-bank' || id === 'au') {
-          tenureMonths = Math.min(tenureMonths, 60);
+          maxAllowedTenureMonths = Math.min(maxAllowedTenureMonths, 60);
         }
-        const tenureYears = tenureMonths / 12;
+
+        const maxTenureMonths = Number(maxAllowedTenureMonths);
+        const maxTenureYears = Math.round(maxTenureMonths / 12);
+
+        // Calculation tenure: use max allowed tenure unless customer explicitly requested a shorter tenure
+        let calculationTenureMonths = maxTenureMonths;
+        if (calculatorInput.loanTenure && Number(calculatorInput.loanTenure) > 0) {
+          calculationTenureMonths = Math.min(Number(calculatorInput.loanTenure) * 12, maxTenureMonths);
+        }
+        const tenureMonths = calculationTenureMonths;
+        const tenureYears = calculationTenureMonths / 12;
 
         let bankExistingEMI = calculatorInput.existingEMI || 0;
         // Axis Finance special obligation handling for Gold Loan & KCC
@@ -2852,8 +2788,12 @@ const matchCategory = (cat1, cat2) => {
         result.maxEligibleLoan = Math.round(maxEligibleLoan);
         result.monthlyEMI = finalMonthlyEMI;
         result.interestRate = finalRate;
-        result.loanTenure = tenureYears;
-        result.loanTenureMonths = tenureMonths;
+        result.loanTenure = maxTenureYears;
+        result.loanTenureMonths = maxTenureMonths;
+        result.maxTenure = maxTenureYears;
+        result.maxTenureMonths = maxTenureMonths;
+        result.calculationTenure = tenureYears;
+        result.calculationTenureMonths = tenureMonths;
         result.multiplier = effectiveMultiplier;
         result.foirPercentage = effectiveFOIR;
         result.appliedRoiSlab = appliedRoiSlab;
@@ -2892,7 +2832,7 @@ const matchCategory = (cat1, cat2) => {
       }
 
       // 💎 ENHANCED RESULT WITH ADMIN TRANSPARENCY
-      return buildEnhancedResult(result, isFinnableInst ? (adminAllConfig.feesAndCharges?.processingFeePercentage || 2.5) : adminAllConfig.feesAndCharges?.processingFeePercentage);
+      return buildEnhancedResult(result, specificPf);
     } catch (error) {
       const bankEndTime = performance.now();
       const bankTime = (bankEndTime - bankStartTime).toFixed(2);

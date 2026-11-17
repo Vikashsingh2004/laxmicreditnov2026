@@ -147,6 +147,7 @@ export const calculateBandhanEligibility = (userData = {}) => {
     foirOverride,
     multiplierOverride,
     maxLoanOverride,
+    maxTenureOverride,
     // Balance Transfer fields
     isBTMode,
     loansForBT,
@@ -292,15 +293,19 @@ export const calculateBandhanEligibility = (userData = {}) => {
     };
   }
 
-  // Tenure handling (Section 3 & Section 6: Cat D is strictly max 48M; Cat C with <=50k is max 48M; others 60M)
-  let maxPermissibleTenure = 60;
-  if (catUpper === 'D') {
-    maxPermissibleTenure = 48; // Section 6: 49-60m is NA for Cat D
-  } else if (catUpper === 'C' && incomeToCheck <= 50000) {
-    maxPermissibleTenure = 48; // Section 6: 49-60m is NA for Cat C <= 50k
+  // Tenure handling (Section 3 & Section 6: Cat D is strictly max 48M; Cat C with <=50k is max 48M; others 60M - Admin Override Supported)
+  let maxPermissibleTenure = maxTenureOverride !== undefined && maxTenureOverride !== null
+    ? Number(maxTenureOverride)
+    : 60;
+  if (maxTenureOverride === undefined || maxTenureOverride === null) {
+    if (catUpper === 'D') {
+      maxPermissibleTenure = 48; // Section 6: 49-60m is NA for Cat D
+    } else if (catUpper === 'C' && incomeToCheck <= 50000) {
+      maxPermissibleTenure = 48; // Section 6: 49-60m is NA for Cat C <= 50k
+    }
   }
 
-  const requestedTenureMonths = loanTenure ? (loanTenure * 12) : 60;
+  const requestedTenureMonths = loanTenure ? (loanTenure * 12) : maxPermissibleTenure;
   let effectiveTenureMonths = Math.min(requestedTenureMonths, maxPermissibleTenure);
   if (isGovtEmployee && govtMaxTenure) {
     effectiveTenureMonths = Math.min(effectiveTenureMonths, govtMaxTenure);
@@ -376,6 +381,10 @@ export const calculateBandhanEligibility = (userData = {}) => {
     interestRate: Number(finalInterestRate),
     tenure: effectiveTenureYears,
     tenureMonths: effectiveTenureMonths,
+    loanTenure: effectiveTenureYears,
+    loanTenureMonths: effectiveTenureMonths,
+    maxTenure: effectiveTenureYears,
+    maxTenureMonths: effectiveTenureMonths,
     emi: Math.round(emi),
     foir: Number((foirPercentage * 100).toFixed(1)),
     multiplier: multiplier,

@@ -1860,7 +1860,7 @@ const CustomerResultsDisplay = ({ results, metadata, aiResult, aiInsight, onNewC
                           <span className="detail-label" style={{ color: '#475569', fontWeight: 700, fontSize: '0.72rem' }}>
                             MAX TENURE
                           </span>
-                          <span className="detail-value" style={{ color: 'rgb(66, 66, 66)' }}>{bank.loanTenure}Y</span>
+                          <span className="detail-value" style={{ color: 'rgb(66, 66, 66)' }}>{bank.maxTenure || bank.loanTenure || bank.tenure}Y</span>
                         </div>
                       </>
                     )}

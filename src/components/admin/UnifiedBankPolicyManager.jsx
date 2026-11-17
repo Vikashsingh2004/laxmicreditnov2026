@@ -159,10 +159,11 @@ const DEFAULT_DEMOGRAPHIC_RULES = {
   minCibilScore: 0, // Bypassed
   ccObligationPercent: 5,
   allowPlBt: true,
-  plBtAllowedCount: 3,
+  plBtAllowedCount: 999,
   allowCcBt: true,
-  ccBtAllowedCount: 3,
-  totalBtCaseCap: 6
+  ccBtAllowedCount: 999,
+  maxCreditCardBTMultiplier: 6,
+  totalBtCaseCap: 999
 };
 
 const DEFAULT_UNIFIED_POLICY = {
@@ -9766,6 +9767,58 @@ const UnifiedBankPolicyManager = () => {
                           if (bId === 'piramal') return 'Excel Policy: 2 CC BT ALLOW (With 1+ PL BT)';
                           if (bId === 'smfg') return 'Excel Policy: 2 CC BT (+ AL BT)';
                           return 'Excel Policy: Maximum credit cards permitted for Balance Transfer';
+                        })()}
+                      </td>
+                    </tr>
+
+                    {/* 2b. Max Credit Card BT POS Salary Multiplier */}
+                    <tr>
+                      <td><strong>Max CC BT POS Cap (Salary Multiplier)</strong></td>
+                      <td>
+                        <div className="table-input-cell highlight">
+                          <input 
+                            type="number"
+                            step="0.5"
+                            value={policyData?.demographics?.maxCreditCardBTMultiplier ?? (() => {
+                              const bId = activeConfigBank?.id || '';
+                              if (bId === 'poonawala') return 4;
+                              if (bId === 'axis-bank') return 5;
+                              if (bId === 'incred' || bId === 'kotak' || bId === 'bandhan' || bId === 'hdfc' || bId === 'icici' || bId === 'indusind' || bId === 'au' || bId === 'au-bank' || bId === 'lnt') return 0;
+                              return 6;
+                            })()}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setPolicyData(prev => ({
+                                ...prev,
+                                demographics: { 
+                                  ...(prev?.demographics || DEFAULT_DEMOGRAPHIC_RULES), 
+                                  maxCreditCardBTMultiplier: val 
+                                }
+                              }));
+                            }}
+                          />
+                          <span>x Salary</span>
+                        </div>
+                      </td>
+                      <td>
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'poonawala') return '4x Salary';
+                          if (bId === 'axis-bank') return '5x Salary';
+                          if (bId === 'incred' || bId === 'kotak' || bId === 'bandhan' || bId === 'hdfc' || bId === 'icici' || bId === 'indusind' || bId === 'au' || bId === 'au-bank' || bId === 'lnt') return '0x (No CC BT)';
+                          return '6x Salary';
+                        })()}
+                      </td>
+                      <td>
+                        {(() => {
+                          const bId = activeConfigBank?.id || '';
+                          if (bId === 'abfl') return 'Excel Policy: 6 TIMES SALARY NOT ALLOW FOR CC BT (Capped at 6x net monthly salary)';
+                          if (bId === 'cholamandalam' || bId === 'chola') return 'Excel Policy: 6 TIMES SALARY NOT ALLOW FOR BT (Capped at 6x salary)';
+                          if (bId === 'bajaj') return 'Excel Policy: CC POS <= 6x monthly salary allowed';
+                          if (bId === 'poonawala') return 'Excel Policy: CC POS <= 4x monthly salary allowed';
+                          if (bId === 'axis-bank') return 'Excel Policy: CC POS <= 5x monthly salary allowed';
+                          if (bId === 'incred' || bId === 'kotak' || bId === 'bandhan' || bId === 'hdfc' || bId === 'icici' || bId === 'indusind' || bId === 'au' || bId === 'au-bank' || bId === 'lnt') return 'Excel Policy: CC BT strictly not allowed';
+                          return 'Excel Policy: Maximum permissible credit card POS multiple of monthly income';
                         })()}
                       </td>
                     </tr>

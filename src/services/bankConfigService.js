@@ -276,7 +276,9 @@ export const saveBankConfig = (bankName, sectionName, config, location = null) =
             maxCcBtCount: d.ccBtAllowedCount !== undefined ? Number(d.ccBtAllowedCount) : (defaultBt.maxCcBtCount ?? 0),
             totalBtCaseCap: d.totalBtCaseCap !== undefined ? Number(d.totalBtCaseCap) : (defaultBt.totalBtCaseCap ?? 6),
             creditCardBTSupported: Boolean(d.allowCcBt !== false && Number(d.ccBtAllowedCount) > 0),
-            maxCreditCardBTMultiplier: d.maxCcBtSalaryMultiplier !== undefined ? Number(d.maxCcBtSalaryMultiplier) : (defaultBt.maxCreditCardBTMultiplier ?? 6)
+            maxCreditCardBTMultiplier: d.maxCreditCardBTMultiplier !== undefined 
+              ? Number(d.maxCreditCardBTMultiplier) 
+              : (d.maxCcBtSalaryMultiplier !== undefined ? Number(d.maxCcBtSalaryMultiplier) : (defaultBt.maxCreditCardBTMultiplier ?? 6))
           };
         }
         if (config.demographics) allConfigs[bankName].ageRules = {

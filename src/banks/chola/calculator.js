@@ -189,24 +189,16 @@ export const calculateCholaEligibility = (userData, adminBankConfig) => {
 
   if (isBT) {
     const ccLoans = (loansForBT || []).filter(l => l.loanType === 'credit_card' || l.type === 'Credit Card');
-    if (ccLoans.length > cholaConfig.btConfig.maxCreditCardsForBT) {
-      return {
-        eligible: false,
-        bankName: cholaConfig.name,
-        reason: `Chola Finance allows maximum ${cholaConfig.btConfig.maxCreditCardsForBT} Credit Cards for Balance Transfer (found ${ccLoans.length}). Excel: 6 CCBT ALLOW`,
-        isBTMode: true
-      };
-    }
-
     const btCreditCardPOS = ccLoans.reduce((sum, loan) => 
       sum + (parseFloat(loan.creditLimitUsed) || parseFloat(loan.outstandingAmount) || 0), 0);
-    const maxAllowedCCPOS = salaryWithoutIncentive * cholaConfig.btConfig.maxCcBtSalaryMultiplier;
+    const maxAllowedCCPOS = salaryWithoutIncentive * (cholaConfig.btConfig.maxCcBtSalaryMultiplier || 6);
     if (btCreditCardPOS > maxAllowedCCPOS) {
       return {
         eligible: false,
         bankName: cholaConfig.name,
-        reason: `Chola Finance restricts Credit Card BT Outstanding (₹${btCreditCardPOS.toLocaleString()}) exceeding 6x monthly salary (Max: ₹${maxAllowedCCPOS.toLocaleString()}). Excel: 6 TIME NOT ALLOW FOR BT`,
-        isBTMode: true
+        reason: `BT Rejected: Credit Card Outstanding (₹${btCreditCardPOS.toLocaleString()}) exceeds 6 times of monthly salary (Max Allowed: ₹${maxAllowedCCPOS.toLocaleString()}).`,
+        isBTMode: true,
+        btNotAllowed: true
       };
     }
 
@@ -319,6 +311,8 @@ export const calculateCholaEligibility = (userData, adminBankConfig) => {
     interestRate: effectiveInterestRate,
     loanTenure: tenureYears,
     loanTenureMonths: tenureMonths,
+    maxTenure: Math.round(maxTenureMonthsAllowed / 12),
+    maxTenureMonths: maxTenureMonthsAllowed,
     foirPercentage: effectiveFOIR,
     multiplier: effectiveMultiplier,
     maxLoanCap: maxCap,

@@ -138,7 +138,9 @@ export const calculateIndusindEligibility = (userData) => {
     btTotalOutstanding = 0,
     // Incentive Overrides
     incentivePercentageOverride,
-    incentiveMonthsOverride
+    incentiveMonthsOverride,
+    // Admin Override
+    maxTenureOverride
   } = userData;
 
   // ========== INCENTIVE CALCULATION LOGIC ==========
@@ -224,13 +226,15 @@ export const calculateIndusindEligibility = (userData) => {
     };
   }
 
-  // 5. Calculate Tenure
-  let maxTenureMonths = 84; // Excel: 84 Months (7 Years)
+  // 5. Calculate Tenure (Admin Override Supported)
+  let maxTenureMonths = maxTenureOverride !== undefined && maxTenureOverride !== null
+    ? Number(maxTenureOverride)
+    : 84; // Excel: 84 Months (7 Years)
   const effectiveCibil = creditScore !== undefined ? creditScore : (cibilScore !== undefined ? cibilScore : 750);
   const isCibilMinusOne = effectiveCibil === -1 || effectiveCibil === '-1' || effectiveCibil === 0;
   
   if (isCibilMinusOne) {
-    maxTenureMonths = 48; // Excel Policy: CIBIL -1 H TO 48 TENURE
+    maxTenureMonths = Math.min(maxTenureMonths, 48); // Excel Policy: CIBIL -1 H TO 48 TENURE
   }
 
   // Capped by Retirement Age of 60
@@ -345,6 +349,8 @@ export const calculateIndusindEligibility = (userData) => {
     appliedRoi: effectiveInterestRate,
     loanTenure: cappedTenureYears,
     loanTenureMonths: cappedTenureMonths,
+    maxTenure: cappedTenureYears,
+    maxTenureMonths: cappedTenureMonths,
     monthlyEMI: Math.round(monthlyEMI),
     multiplier: multiplier,
     foirPercentage: foirPercentage,

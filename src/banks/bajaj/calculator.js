@@ -98,7 +98,8 @@ export const calculateBajajEligibility = (input) => {
     isGovt = false,
     hasHomeLoan = false,
     isBTMode = false,
-    desiredTenureMonths = null
+    desiredTenureMonths = null,
+    maxTenureOverride = null
   } = input;
 
   const isUnlisted = companyType === 'unlisted' || String(companyCategory).toUpperCase() === 'D' || String(companyCategory).toUpperCase() === 'UNLISTED';
@@ -166,9 +167,11 @@ export const calculateBajajEligibility = (input) => {
     };
   }
 
-  // 5. Tenure Calculation
+  // 5. Tenure Calculation (Admin Override Supported)
   // Standard up to 96 months (8 years); 108 months (9 years) for ₹1L+ salary
-  const maxPossibleTenureMonths = (monthlyIncome >= 100000) ? bajajConfig.maxLoanTenureHighSalary : bajajConfig.maxLoanTenureMonths;
+  const maxPossibleTenureMonths = maxTenureOverride !== undefined && maxTenureOverride !== null
+    ? Number(maxTenureOverride)
+    : ((monthlyIncome >= 100000) ? bajajConfig.maxLoanTenureHighSalary : bajajConfig.maxLoanTenureMonths);
   const ageRemainingMonths = Math.max(0, (maxAllowedAge - age) * 12);
   let finalTenureMonths = Math.min(maxPossibleTenureMonths, ageRemainingMonths);
 
@@ -221,6 +224,10 @@ export const calculateBajajEligibility = (input) => {
     interestRate: currentRoi,
     tenureMonths: finalTenureMonths,
     tenureYears: Math.round(tenureYears * 10) / 10,
+    loanTenure: Math.round(tenureYears),
+    loanTenureMonths: finalTenureMonths,
+    maxTenure: Math.round(finalTenureMonths / 12),
+    maxTenureMonths: finalTenureMonths,
     monthlyEMI: finalEmi,
     foir: Math.round(foir * 100),
     multiplier,

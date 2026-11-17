@@ -86,7 +86,8 @@ export const calculateAxisBankEligibility = (userData = {}, configOverride = {})
     totalWorkExperience = 24,
     currentCompanyExperience = 12,
     city = 'Tier 1',
-    state = ''
+    state = '',
+    maxTenureOverride = null
   } = userData;
 
   const cfg = {
@@ -125,8 +126,11 @@ export const calculateAxisBankEligibility = (userData = {}, configOverride = {})
     };
   }
 
-  const requestedTenureYears = Number(loanTenure || 5);
-  const tenureYears = Math.min(requestedTenureYears, 7, maxTenureYearsByAge);
+  const maxAllowedYears = maxTenureOverride !== undefined && maxTenureOverride !== null
+    ? Math.round(Number(maxTenureOverride) / 12)
+    : 7;
+  const requestedTenureYears = Number(loanTenure || maxAllowedYears);
+  const tenureYears = Math.min(requestedTenureYears, maxAllowedYears, maxTenureYearsByAge);
   const tenureMonths = tenureYears * 12;
 
   // 2. Work Experience Check (Min 12 Months Total, 6 Months Current)
@@ -208,6 +212,8 @@ export const calculateAxisBankEligibility = (userData = {}, configOverride = {})
     appliedRoi,
     loanTenure: tenureYears,
     loanTenureMonths: tenureMonths,
+    maxTenure: Math.min(maxAllowedYears, maxTenureYearsByAge),
+    maxTenureMonths: Math.min(maxAllowedYears, maxTenureYearsByAge) * 12,
     requestedTenureMonths: requestedTenureYears * 12,
     monthlyEMI,
     foirPercentage: foir,

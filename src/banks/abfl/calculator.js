@@ -97,23 +97,38 @@ export const calculateAbflEligibility = (userData = {}) => {
     };
   }
 
-  // 4. Credit Card Obligation & BT Capping
+  // 4. Credit Card Obligation & BT Capping (Excel Policy: 6x Salary BT Capping, NOT count of CC/loans)
   const ccObligation = creditCardObligation;
   const isBT = isBTMode && loansForBT && loansForBT.length > 0;
-  const btCount = isBT ? loansForBT.length : 0;
+  const maxAllowedBTAmount = actualIncome * 6;
   
-  if (isBT && btCount > 5) {
-    return {
-      eligible: false,
-      reason: `ABFL policy permits a maximum of 5 Credit Card / Loan BTs (Requested: ${btCount} BTs).`
-    };
-  }
+  if (isBT) {
+    const ccLoans = (loansForBT || []).filter(l => {
+      const t = String(l.loanType || l.type || '').toLowerCase();
+      return t.includes('credit') || t.includes('card') || t === 'cc';
+    });
+    const btCreditCardPOS = ccLoans.reduce((sum, loan) => 
+      sum + (parseNum(loan.creditLimitUsed) || parseNum(loan.outstandingAmount) || 0), 0);
 
-  if (isBT && btTotalOutstanding > (actualIncome * 6)) {
-    return {
-      eligible: false,
-      reason: `BT Outstanding (₹${btTotalOutstanding.toLocaleString()}) exceeds ABFL capping of 6 times monthly income (₹${(actualIncome * 6).toLocaleString()}).`
-    };
+    if (btCreditCardPOS > maxAllowedBTAmount) {
+      return {
+        eligible: false,
+        bankName: abflConfig.name,
+        reason: `BT Rejected: Credit Card Outstanding (₹${Math.round(btCreditCardPOS).toLocaleString()}) exceeds 6 times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedBTAmount).toLocaleString()}).`,
+        isBTMode: true,
+        btNotAllowed: true
+      };
+    }
+
+    if (btTotalOutstanding > maxAllowedBTAmount) {
+      return {
+        eligible: false,
+        bankName: abflConfig.name,
+        reason: `BT Rejected: Total BT Outstanding (₹${Math.round(btTotalOutstanding).toLocaleString()}) exceeds 6 times of monthly salary (Max Allowed: ₹${Math.round(maxAllowedBTAmount).toLocaleString()}).`,
+        isBTMode: true,
+        btNotAllowed: true
+      };
+    }
   }
 
   // 5. FOIR Policy Matrix (Table 2: NO HL vs EVER HL/LAP)
@@ -251,6 +266,8 @@ export const calculateAbflEligibility = (userData = {}) => {
     interestRate: appliedRoi,
     loanTenure: tenureYears,
     loanTenureMonths: calculationTenureMonths,
+    maxTenure: Math.round(maxTenureAllowed / 12),
+    maxTenureMonths: maxTenureAllowed,
     requestedTenureMonths,
     monthlyEMI,
     foirPercentage,

@@ -15,6 +15,7 @@ export const ABFL_BANK_EXCEL_POLICY = {
     ccObligationPercent: 5,
     ccBtAllowedCount: 5,
     maxCcBtSalaryMultiplier: 6,
+    maxCreditCardBTMultiplier: 6,
     kccNotObligated: true,
     minLoanAmount: 100000,
     allowPlBt: true,
