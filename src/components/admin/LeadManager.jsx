@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { 
     Mail, Download, Search, MessageCircle, Copy, Trash2, 
     Share2, Check, FileSpreadsheet, Eye, X, Calendar, 
-    Filter, ArrowUpRight, CheckCircle2, RefreshCw, UserCheck, Building, Phone, IndianRupee
+    Filter, ArrowUpRight, CheckCircle2, RefreshCw, UserCheck, Building, Phone, IndianRupee,
+    FileText
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../config/firebase.js';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { formatBanksShortList, isGenuineCustomerLead } from '../../services/leadService.js';
+import { downloadCustomerReportPdf } from '../../services/customerReportService.js';
 import './LeadManager.css';
 
 const MONTH_NAMES = [
@@ -149,6 +151,7 @@ const LeadManager = ({ userRole }) => {
     const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
     const [loading, setLoading] = useState(true);
     const [copiedLeadId, setCopiedLeadId] = useState(null);
+    const [downloadingPdfLeadId, setDownloadingPdfLeadId] = useState(null);
 
     // Filter states
     const [dateFilter, setDateFilter] = useState('all'); // 'today', 'week', 'month', 'specific_month', 'all'
@@ -443,6 +446,25 @@ const LeadManager = ({ userRole }) => {
             alert('✅ Local lead records cleared.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Customer Eligibility PDF Report Download (Matches Result Page Branded PDF)
+    const handleDownloadPdfReport = async (lead) => {
+        if (!lead || downloadingPdfLeadId) return;
+        try {
+            setDownloadingPdfLeadId(lead.id);
+            await downloadCustomerReportPdf({
+                lead,
+                onProgress: (status) => {
+                    console.log(`[LeadManager PDF] ${status}`);
+                }
+            });
+        } catch (err) {
+            console.error('Failed to generate customer PDF report:', err);
+            alert('Unable to generate customer PDF report right now. Please check console for details.');
+        } finally {
+            setDownloadingPdfLeadId(null);
         }
     };
 
@@ -955,14 +977,29 @@ const LeadManager = ({ userRole }) => {
                                 </td>
                                 <td>
                                     <div className="action-buttons-cell">
-                                        {/* Download Single Lead Report */}
+                                        {/* Download Customer PDF Eligibility Report (Matches Result Page 2-Page Executive PDF) */}
+                                        <button
+                                            className="btn-download-lead-pdf"
+                                            title="Download Customer Eligibility Report (2-Page Executive PDF)"
+                                            disabled={downloadingPdfLeadId === lead?.id}
+                                            onClick={() => handleDownloadPdfReport(lead)}
+                                        >
+                                            {downloadingPdfLeadId === lead?.id ? (
+                                                <RefreshCw size={13} className="spin-animate" />
+                                            ) : (
+                                                <FileText size={13} />
+                                            )}
+                                            <span>{downloadingPdfLeadId === lead?.id ? 'PDF...' : 'PDF'}</span>
+                                        </button>
+
+                                        {/* Download Single Lead Excel Report */}
                                         <button
                                             className="btn-download-lead-single"
-                                            title="Download Customer Excel Report (.xlsx)"
+                                            title="Download Customer Excel Dossier (.xlsx)"
                                             onClick={() => handleDownloadSingleLead(lead)}
                                         >
-                                            <Download size={14} />
-                                            <span>Report</span>
+                                            <FileSpreadsheet size={13} />
+                                            <span>Excel</span>
                                         </button>
 
                                         {/* Main Share Lead Button */}
@@ -971,7 +1008,7 @@ const LeadManager = ({ userRole }) => {
                                             title="Share Lead (WhatsApp, Email, Copy, System)"
                                             onClick={() => setActiveShareLead(lead)}
                                         >
-                                            <Share2 size={15} />
+                                            <Share2 size={14} />
                                             <span>Share Lead</span>
                                         </button>
 
@@ -1173,13 +1210,28 @@ const LeadManager = ({ userRole }) => {
                                 <span>Share on WhatsApp</span>
                             </button>
 
+                            {/* Customer PDF Report Download */}
+                            <button 
+                                className="dossier-action-btn btn-pdf"
+                                disabled={downloadingPdfLeadId === activeShareLead?.id}
+                                onClick={() => handleDownloadPdfReport(activeShareLead)}
+                                title="Download Customer Eligibility Report (PDF)"
+                            >
+                                {downloadingPdfLeadId === activeShareLead?.id ? (
+                                    <RefreshCw size={17} className="spin-animate" />
+                                ) : (
+                                    <FileText size={17} />
+                                )}
+                                <span>{downloadingPdfLeadId === activeShareLead?.id ? 'Generating...' : 'PDF Report'}</span>
+                            </button>
+
                             <button 
                                 className="dossier-action-btn btn-report"
                                 onClick={() => handleDownloadSingleLead(activeShareLead)}
                                 title="Download Excel dossier report (.xlsx)"
                             >
                                 <FileSpreadsheet size={17} />
-                                <span>Download Report</span>
+                                <span>Excel Dossier</span>
                             </button>
 
                             <button 
@@ -1332,9 +1384,24 @@ const LeadManager = ({ userRole }) => {
                         <div className="modal-footer detail-modal-footer">
                             <div className="footer-left">
                                 <button 
+                                    className="btn-download-lead-pdf"
+                                    style={{ padding: '8px 14px' }}
+                                    disabled={downloadingPdfLeadId === activeDetailLead?.id}
+                                    onClick={() => handleDownloadPdfReport(activeDetailLead)}
+                                    title="Download Customer PDF Eligibility Report"
+                                >
+                                    {downloadingPdfLeadId === activeDetailLead?.id ? (
+                                        <RefreshCw size={16} className="spin-animate" />
+                                    ) : (
+                                        <FileText size={16} />
+                                    )}
+                                    <span>{downloadingPdfLeadId === activeDetailLead?.id ? 'Generating PDF...' : 'Download PDF Report'}</span>
+                                </button>
+                                <button 
                                     className="btn-download-lead-single"
                                     style={{ padding: '8px 14px' }}
                                     onClick={() => handleDownloadSingleLead(activeDetailLead)}
+                                    title="Download Excel Dossier Report (.xlsx)"
                                 >
                                     <Download size={16} />
                                     <span>Download Excel Report</span>

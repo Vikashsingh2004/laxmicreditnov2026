@@ -514,6 +514,34 @@
     transform: translateY(-1px);
 }
 
+.btn-download-lead-pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    background: linear-gradient(135deg, rgba(245, 130, 32, 0.16) 0%, rgba(220, 38, 38, 0.16) 100%);
+    border: 1px solid rgba(245, 130, 32, 0.45);
+    color: #f97316;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-download-lead-pdf:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(245, 130, 32, 0.32) 0%, rgba(220, 38, 38, 0.32) 100%);
+    box-shadow: 0 0 10px rgba(245, 130, 32, 0.35);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.btn-download-lead-pdf:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .btn-download-lead-single {
     display: inline-flex;
     align-items: center;
@@ -796,6 +824,34 @@
     transform: translateY(-1px);
     box-shadow: 0 6px 18px rgba(37, 211, 102, 0.5);
     filter: brightness(1.08);
+}
+
+.dossier-action-btn.btn-pdf {
+    background: linear-gradient(135deg, rgba(245, 130, 32, 0.18) 0%, rgba(220, 38, 38, 0.18) 100%);
+    color: #f97316;
+    border-color: rgba(245, 130, 32, 0.45);
+}
+
+.dossier-action-btn.btn-pdf:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(245, 130, 32, 0.32) 0%, rgba(220, 38, 38, 0.32) 100%);
+    border-color: #f97316;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(245, 130, 32, 0.35);
+    transform: translateY(-1px);
+}
+
+.dossier-action-btn.btn-pdf:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@keyframes spinSlow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin-animate {
+    animation: spinSlow 1s linear infinite;
 }
 
 .dossier-action-btn.btn-report {

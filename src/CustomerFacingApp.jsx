@@ -174,7 +174,7 @@ function CustomerFacingApp() {
         const approvedBanks = (calculationResults || [])
           .filter(r => r && r.eligible)
           .map(r => r.bankName);
-        saveLead(combinedData, submissionData, approvedBanks).catch(err => console.warn('Lead background update:', err));
+        saveLead(combinedData, submissionData, approvedBanks, calculationResults).catch(err => console.warn('Lead background update:', err));
       } catch (postSaveErr) {
         console.warn('Post-calculation lead update notice:', postSaveErr);
       }

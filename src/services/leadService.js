@@ -107,8 +107,9 @@ export const isGenuineCustomerLead = (lead) => {
  * @param {Object} formData  - raw formData state from CustomerLoanForm
  * @param {Object} submissionData - the processed submission sent to loan engine
  * @param {String|Array} eligibleBanks - list of banks customer is eligible for
+ * @param {Array} [calculationResults] - optional pre-calculated bank eligibility matrix
  */
-export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks = '') => {
+export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks = '', calculationResults = null) => {
     try {
         const rawForm = formData || {};
         const subData = submissionData || {};
@@ -240,7 +241,10 @@ export const saveLead = async (formData = {}, submissionData = {}, eligibleBanks
             livingStatus: rawForm.livingStatus || metaData.livingStatus || subData.livingStatus || '',
             status: selectedBanksArr.length > 0 ? 'Selected' : 'New',
             selectedBanks: formattedSelectedBanks,
-            eligibleBanks: formattedEligibleBanks
+            eligibleBanks: formattedEligibleBanks,
+            calculationResults: Array.isArray(calculationResults) && calculationResults.length > 0 
+                ? JSON.parse(JSON.stringify(calculationResults)) 
+                : null
         };
 
         // ── STEP 1: PERSIST LOCALLY (IMMEDIATE) ───────────────────────────────
