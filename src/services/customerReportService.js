@@ -148,8 +148,11 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
   );
 
   // CIBIL Profile Info
-  const isCibilMinus1 = meta.creditScore === -1 || meta.creditScore === '-1' || meta.cibilScore === -1 || meta.cibilScore === '-1' || meta.isNewToCredit || lead?.cibilScore === -1;
-  const reportedCibil = meta.cibilScore ?? meta.creditScore ?? lead?.cibilScore ?? 750;
+  const isCibilMinus1 = meta.creditScore === -1 || meta.creditScore === '-1' || meta.cibilScore === -1 || meta.cibilScore === '-1' || meta.isNewToCredit || lead?.cibilScore === -1 || lead?.creditScore === -1 || lead?.isNewToCredit;
+  const rawReportedCibil = meta.cibilScore ?? meta.creditScore ?? lead?.cibilScore ?? lead?.creditScore;
+  const reportedCibil = (!isCibilMinus1 && rawReportedCibil && Number(rawReportedCibil) > 0)
+    ? Number(rawReportedCibil)
+    : null;
 
   const reportDate = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -159,6 +162,11 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
 
   const sortedEligibleBanks = [...eligibleBanks].sort((a, b) => (b.loanAmount || 0) - (a.loanAmount || 0));
   const bestOffer = sortedEligibleBanks.length > 0 ? sortedEligibleBanks[0] : null;
+
+  // Keep table strictly within Page 1 (max 10 lenders in main table to prevent 3-page spillover)
+  const MAX_PAGE1_BANKS = 10;
+  const displayedEligibleBanks = sortedEligibleBanks.slice(0, MAX_PAGE1_BANKS);
+  const extraEligibleBanks = sortedEligibleBanks.slice(MAX_PAGE1_BANKS);
 
   const stats = {
     totalBanks: results.length,
@@ -177,7 +185,7 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
   const bestRoi = bestOffer ? (bestOffer.interestRate ?? bestOffer.roi ?? 10.5) : 10.5;
   const bestTenure = bestOffer ? (bestOffer.loanTenure ?? bestOffer.tenure ?? 5) : 5;
 
-  const rowsHtml = sortedEligibleBanks.length > 0 ? sortedEligibleBanks.map((b, idx) => {
+  const rowsHtml = displayedEligibleBanks.length > 0 ? displayedEligibleBanks.map((b, idx) => {
     const bankRoi = b.interestRate ?? b.roi ?? 10.5;
     const bankTenure = b.loanTenure ?? b.tenure ?? 5;
 
@@ -328,7 +336,7 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
     <div style="width: 760px; padding: 16px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: rgb(66, 66, 66); background: #ffffff; box-sizing: border-box;">
       
       <!-- PAGE 1: EXECUTIVE ASSESSMENT SUMMARY & COMPARATIVE OFFERS TABLE -->
-      <div style="min-height: 940px; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; break-after: always; box-sizing: border-box;">
+      <div style="min-height: 940px; max-height: 1040px; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; break-after: always; box-sizing: border-box; overflow: hidden;">
         <div>
           <!-- Header with Branding -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #F58220; padding-bottom: 10px; margin-bottom: 14px;">
@@ -384,7 +392,7 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
               </div>
               <div style="display: flex; gap: 6px; align-items: center;">
                 <span style="font-size: 9.5px; color: ${isCibilMinus1 ? '#6D28D9' : '#1E40AF'}; font-weight: 700; background: ${isCibilMinus1 ? '#F5F3FF' : '#EFF6FF'}; padding: 2px 7px; border-radius: 8px; border: 1px solid ${isCibilMinus1 ? '#DDD6FE' : '#BFDBFE'};">
-                  ${isCibilMinus1 ? '★ New to Credit (-1)' : `CIBIL: ${reportedCibil}`}
+                  ${isCibilMinus1 ? '★ New to Credit (-1)' : (reportedCibil ? `CIBIL: ${reportedCibil}` : 'CIBIL: Self-Reported')}
                 </span>
                 <span style="font-size: 9.5px; color: #15803D; font-weight: 700; background: #ECFDF5; padding: 2px 7px; border-radius: 8px; border: 1px solid #A7F3D0;">
                   ✓ Form Verified
@@ -499,11 +507,18 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
             </tbody>
           </table>
 
+          ${extraEligibleBanks.length > 0 ? `
+            <div style="margin-top: 6px; padding: 5px 10px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; font-size: 9.5px; color: #166534; line-height: 1.4;">
+              <strong>✓ Plus ${extraEligibleBanks.length} additional approved institutions:</strong>
+              ${extraEligibleBanks.map(b => `<span style="font-weight: 600;">${b.bankName}</span> (${formatLakhs(b.loanAmount)})`).join(' • ')}
+            </div>
+          ` : ''}
+
           ${rejectedBanks.length > 0 ? `
-            <div style="margin-top: 10px; padding: 8px 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; font-size: 9.5px; color: #991B1B; line-height: 1.4;">
+            <div style="margin-top: 6px; padding: 5px 10px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; font-size: 9.5px; color: #991B1B; line-height: 1.4;">
               <strong>✕ Not Allowed / Excluded (${rejectedBanks.length} Lenders):</strong>
-              ${rejectedBanks.slice(0, 5).map(b => `<span style="font-weight: 600;">${b.bankName}</span> (${b.reason || 'Criteria mismatch'})`).join(' • ')}
-              ${rejectedBanks.length > 5 ? ` and ${rejectedBanks.length - 5} more.` : ''}
+              ${rejectedBanks.slice(0, 4).map(b => `<span style="font-weight: 600;">${b.bankName}</span> (${b.reason || 'Criteria mismatch'})`).join(' • ')}
+              ${rejectedBanks.length > 4 ? ` and ${rejectedBanks.length - 4} more.` : ''}
             </div>
           ` : ''}
         </div>
@@ -516,7 +531,7 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
       </div>
 
       <!-- PAGE 2: EXECUTIVE SPOTLIGHT & ACTION BLUEPRINT -->
-      <div style="min-height: 940px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; padding-top: 6px;">
+      <div style="min-height: 940px; max-height: 1040px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; overflow: hidden; padding-top: 6px;">
         <div>
           <!-- Page 2 Header -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #F58220; padding-bottom: 10px; margin-bottom: 16px;">
@@ -1002,6 +1017,12 @@ export const downloadCustomerReportPdf = async ({ lead, metadata, results, onPro
       age: metadata?.age || lead?.age || '',
       maritalStatus: metadata?.maritalStatus || lead?.maritalStatus || '',
       livingStatus: metadata?.livingStatus || lead?.livingStatus || '',
+      workExperience: metadata?.workExperience || lead?.workExperience || 'above_24m',
+      totalWorkExperience: Number(metadata?.totalWorkExperience || lead?.totalWorkExperience || 25),
+      workExperienceMonths: Number(metadata?.workExperienceMonths || lead?.workExperienceMonths || 25),
+      cibilScore: metadata?.cibilScore ?? metadata?.creditScore ?? lead?.cibilScore ?? lead?.creditScore ?? null,
+      creditScore: metadata?.creditScore ?? metadata?.cibilScore ?? lead?.creditScore ?? lead?.cibilScore ?? null,
+      isNewToCredit: Boolean(metadata?.isNewToCredit ?? lead?.isNewToCredit ?? metadata?.creditScore === -1 ?? lead?.creditScore === -1),
       wantsBT: metadata?.wantsBT === true || metadata?.wantsBT === 'Yes' || lead?.wantsBT === 'Yes' || lead?.wantsBT === true || lead?.productCode === 'PL_BT' || lead?.productCode === 'OD_BT',
       isBTMode: metadata?.isBTMode || metadata?.wantsBT === true || metadata?.wantsBT === 'Yes' || lead?.wantsBT === 'Yes' || lead?.wantsBT === true || lead?.productCode === 'PL_BT' || lead?.productCode === 'OD_BT',
       mode: (metadata?.mode || metadata?.productMode || lead?.mode || lead?.productMode || (lead?.productCode === 'TOPUP' ? 'topup' : (lead?.productCode === 'OD' || lead?.productCode === 'OD_BT' ? 'od' : 'pl'))).toLowerCase()
@@ -1069,6 +1090,10 @@ export const downloadCustomerReportPdf = async ({ lead, metadata, results, onPro
         });
       }
 
+      const rawCibil = meta.cibilScore ?? meta.creditScore ?? null;
+      const isNewToCreditVal = Boolean(meta.isNewToCredit || rawCibil === -1 || rawCibil === '-1');
+      const resolvedCibil = isNewToCreditVal ? -1 : (rawCibil ? Number(rawCibil) : null);
+
       const submissionData = {
         monthlyIncome: meta.monthlyIncome || meta.basicSalary || 35000,
         basicSalary: meta.basicSalary || meta.monthlyIncome || 35000,
@@ -1082,6 +1107,12 @@ export const downloadCustomerReportPdf = async ({ lead, metadata, results, onPro
         salaryMode: String(meta.salaryMode || 'bank').toLowerCase().includes('cash') ? 'cash' : (String(meta.salaryMode || '').toLowerCase().includes('cheque') ? 'cheque' : 'bank'),
         livingStatus: meta.livingStatus || 'owned',
         maritalStatus: meta.maritalStatus || 'married',
+        workExperience: meta.workExperience || 'above_24m',
+        totalWorkExperience: Number(meta.totalWorkExperience || 25),
+        workExperienceMonths: Number(meta.workExperienceMonths || 25),
+        creditScore: resolvedCibil,
+        cibilScore: resolvedCibil,
+        isNewToCredit: isNewToCreditVal,
         mode: isTopUp ? 'topup' : (isOD ? 'od' : 'pl'),
         productMode: isTopUp ? 'topup' : (isOD ? 'od' : 'pl'),
         wantsBT: wantsBT,

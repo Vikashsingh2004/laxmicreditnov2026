@@ -218,7 +218,7 @@ export const calculateIndusindEligibility = (userData) => {
   }
 
   // 4.5 Work Experience Check (Minimum 1 Year / 12 Months overall work experience from Row 12)
-  const totalExp = Number(userData.totalWorkExperience || userData.workExperienceMonths || (userData.workExperience === 'above_24m' ? 25 : (userData.workExperience === '3m_to_24m' ? 12 : 2)) || 0);
+  const totalExp = Number(userData.totalWorkExperience || userData.workExperienceMonths || (userData.workExperience === 'below_3m' ? 2 : (userData.workExperience === '3m_to_24m' ? 12 : 25)) || 25);
   if (totalExp > 0 && totalExp < 12) {
     return {
       eligible: false,

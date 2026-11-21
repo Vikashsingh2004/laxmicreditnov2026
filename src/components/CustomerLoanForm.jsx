@@ -95,7 +95,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
       incentiveMonth2: saved?.incentiveMonth2 || '',
       incentiveMonth3: saved?.incentiveMonth3 || '',
       age: saved?.age || '',
-      creditScore: isNewCreditSaved ? '-1' : (saved?.creditScore !== undefined ? String(saved.creditScore) : '750'),
+      creditScore: isNewCreditSaved ? '-1' : (saved?.creditScore ? String(saved.creditScore) : ''),
       isNewToCredit: isNewCreditSaved,
       category: saved?.category || 'B',
       employmentType: saved?.employmentType || 'salaried',
@@ -162,7 +162,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
       setFormData(prev => ({
         ...prev,
         ...initialData,
-        creditScore: isNewInit ? '-1' : (initialData.creditScore !== undefined ? String(initialData.creditScore) : (prev.creditScore || '750')),
+        creditScore: isNewInit ? '-1' : (initialData.creditScore !== undefined ? String(initialData.creditScore) : (prev.creditScore || '')),
         isNewToCredit: isNewInit !== undefined ? isNewInit : (prev.isNewToCredit || false),
         hasExistingLoans: initialData.hasExistingLoans !== undefined ? initialData.hasExistingLoans : (initialLoans.length > 0 || prev.hasExistingLoans),
         existingLoans: initialLoans.length > 0 ? initialLoans : prev.existingLoans,
@@ -258,7 +258,7 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
     setFormData(prev => ({
       ...prev,
       isNewToCredit: checked,
-      creditScore: checked ? '-1' : (prev.creditScore === '-1' ? '750' : prev.creditScore)
+      creditScore: checked ? '-1' : (prev.creditScore === '-1' ? '' : prev.creditScore)
     }));
   };
 
@@ -486,6 +486,22 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
       document.getElementById('basicSalary')?.focus();
       return;
     }
+
+    // ── Guard: CIBIL Score Validation (Must be filled by customer or marked New to Credit) ──
+    const isNTC = Boolean(formData.isNewToCredit || formData.creditScore === '-1' || formData.creditScore === -1);
+    if (!isNTC) {
+      const parsedCibil = parseInt(formData.creditScore, 10);
+      if (!formData.creditScore || isNaN(parsedCibil)) {
+        setValidationError('Please enter your CIBIL score (between 300 and 900) or check "New to Credit / No CIBIL (-1)".');
+        document.getElementById('creditScore')?.focus();
+        return;
+      }
+      if (parsedCibil < 300 || parsedCibil > 900) {
+        setValidationError(`CIBIL score must be between 300 and 900. You entered ${formData.creditScore}.`);
+        document.getElementById('creditScore')?.focus();
+        return;
+      }
+    }
     
     // Security Hook: Prevent any negative numbers from breaking FOIR math
     const financialFields = [
@@ -640,10 +656,10 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
       loansForBT: loansForBT,
       creditScore: (formData.isNewToCredit || formData.creditScore === '-1' || formData.creditScore === -1)
         ? -1
-        : (formData.creditScore ? parseInt(formData.creditScore, 10) : 750),
+        : (formData.creditScore ? parseInt(formData.creditScore, 10) : null),
       cibilScore: (formData.isNewToCredit || formData.creditScore === '-1' || formData.creditScore === -1)
         ? -1
-        : (formData.creditScore ? parseInt(formData.creditScore, 10) : 750),
+        : (formData.creditScore ? parseInt(formData.creditScore, 10) : null),
       isNewToCredit: Boolean(formData.isNewToCredit || formData.creditScore === '-1' || formData.creditScore === -1),
       state: formData.state,
       city: formData.city,
@@ -697,10 +713,10 @@ const CustomerLoanForm = ({ onSubmit, loading, onBackToHome, initialData, mode =
         age: formData.age,
         creditScore: (formData.isNewToCredit || formData.creditScore === '-1' || formData.creditScore === -1)
           ? -1
-          : (formData.creditScore ? parseInt(formData.creditScore, 10) : 750),
+          : (formData.creditScore ? parseInt(formData.creditScore, 10) : null),
         cibilScore: (formData.isNewToCredit || formData.creditScore === '-1' || formData.creditScore === -1)
           ? -1
-          : (formData.creditScore ? parseInt(formData.creditScore, 10) : 750),
+          : (formData.creditScore ? parseInt(formData.creditScore, 10) : null),
         isNewToCredit: Boolean(formData.isNewToCredit || formData.creditScore === '-1' || formData.creditScore === -1),
         employmentType: formData.employmentType,
         salaryMode: formData.salaryMode,
