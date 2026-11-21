@@ -402,38 +402,48 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
 
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
-                <td style="width: 25%; vertical-align: top; padding: 2px 5px 4px 0;">
+                <td style="width: 20%; vertical-align: top; padding: 2px 5px 4px 0;">
                   <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Applicant Name</div>
                   <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${applicantName}</div>
                 </td>
-                <td style="width: 25%; vertical-align: top; padding: 2px 5px 4px 0;">
+                <td style="width: 20%; vertical-align: top; padding: 2px 5px 4px 0;">
                   <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Mobile Number</div>
                   <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${mobileNumber}</div>
                 </td>
-                <td style="width: 25%; vertical-align: top; padding: 2px 5px 4px 0;">
+                <td style="width: 20%; vertical-align: top; padding: 2px 5px 4px 0;">
+                  <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 700;">CIBIL / Credit Score</div>
+                  <div style="font-size: 12.5px; font-weight: 850; color: ${isCibilMinus1 ? '#7C3AED' : (reportedCibil >= 750 ? '#15803D' : (reportedCibil >= 700 ? '#1E40AF' : '#D97706'))}; margin-top: 1px;">
+                    ${isCibilMinus1 ? '★ New to Credit (-1)' : (reportedCibil ? `${reportedCibil}` : 'Not Specified')}
+                  </div>
+                </td>
+                <td style="width: 20%; vertical-align: top; padding: 2px 5px 4px 0;">
                   <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Age & Marital Status</div>
                   <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${ageText} • ${maritalText}</div>
                 </td>
-                <td style="width: 25%; vertical-align: top; padding: 2px 0 4px 0;">
+                <td style="width: 20%; vertical-align: top; padding: 2px 0 4px 0;">
                   <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Location & Residence</div>
                   <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${locationText} (${livingText})</div>
                 </td>
               </tr>
               <tr>
-                <td style="width: 25%; vertical-align: top; padding: 4px 5px 2px 0; border-top: 1px dashed #E2E8F0;">
+                <td style="width: 20%; vertical-align: top; padding: 4px 5px 2px 0; border-top: 1px dashed #E2E8F0;">
                   <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Employer Organization</div>
                   <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${companyName}</div>
                 </td>
-                <td style="width: 25%; vertical-align: top; padding: 4px 5px 2px 0; border-top: 1px dashed #E2E8F0;">
-                  <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Employment & Tier</div>
-                  <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${employmentText} (${categoryTier})</div>
+                <td style="width: 20%; vertical-align: top; padding: 4px 5px 2px 0; border-top: 1px dashed #E2E8F0;">
+                  <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Company Tier</div>
+                  <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">Cat ${categoryTier} (${employmentText})</div>
                 </td>
-                <td style="width: 25%; vertical-align: top; padding: 4px 5px 2px 0; border-top: 1px dashed #E2E8F0;">
+                <td style="width: 20%; vertical-align: top; padding: 4px 5px 2px 0; border-top: 1px dashed #E2E8F0;">
                   <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Net Monthly Salary</div>
-                  <div style="font-size: 12px; font-weight: 750; color: #1E40AF; margin-top: 1px;">${salaryText} <span style="font-size: 9px; font-weight: normal; color: #64748b;">(${salaryModeText})</span></div>
+                  <div style="font-size: 12px; font-weight: 750; color: #1E40AF; margin-top: 1px;">${salaryText}</div>
                 </td>
-                <td style="width: 25%; vertical-align: top; padding: 4px 0 2px 0; border-top: 1px dashed #E2E8F0;">
-                  <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Active Loan Obligations</div>
+                <td style="width: 20%; vertical-align: top; padding: 4px 5px 2px 0; border-top: 1px dashed #E2E8F0;">
+                  <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Salary Mode</div>
+                  <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${salaryModeText}</div>
+                </td>
+                <td style="width: 20%; vertical-align: top; padding: 4px 0 2px 0; border-top: 1px dashed #E2E8F0;">
+                  <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600;">Active Obligations</div>
                   <div style="font-size: 12px; font-weight: 750; color: rgb(66, 66, 66); margin-top: 1px;">${existingLoansText}</div>
                 </td>
               </tr>
@@ -545,7 +555,7 @@ export const generateCustomerReportHtml = ({ lead, metadata, results = [] }) => 
             </div>
             <div style="text-align: right;">
               <span style="background: #EEF3FA; color: #1E40AF; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; border: 1px solid #BFDBFE; display: inline-block; margin-bottom: 3px;">
-                Applicant: <strong>${applicantName}</strong>
+                Applicant: <strong>${applicantName}</strong> • ${isCibilMinus1 ? '<span style="color: #7C3AED; font-weight: 800;">★ NTC (-1)</span>' : (reportedCibil ? `<span style="color: #1E40AF; font-weight: 800;">CIBIL: ${reportedCibil}</span>` : 'CIBIL Verified')}
               </span>
               <div style="font-size: 10.5px; color: #64748b;">
                 Assessment Date: ${reportDate}

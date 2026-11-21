@@ -638,7 +638,7 @@ const matchCategory = (cat1, cat2) => {
       }
 
       // NTC (-1 CIBIL) Rule for AU Bank
-      const rawCibil = calculatorInput.cibilScore ?? calculatorInput.customerReportedCreditScore;
+      const rawCibil = calculatorInput.cibilScore ?? calculatorInput.creditScore ?? calculatorInput.customerReportedCreditScore;
       const isNtc = rawCibil === -1 || rawCibil === '-1' || Number(rawCibil) === -1;
       if (isNtc && (name.toLowerCase().includes('au ') || id === 'au-bank' || id === 'au')) {
         const catUpper = String(calculatorInput.category || '').toUpperCase().trim();
